@@ -46,6 +46,50 @@ enum struct ModuleManagerPlugin {
 		ManagerID id = this.manager_ids++;
 		return id;
 	}
+	
+	void Destroy() {
+		this.glfwd_manager.Destroy();
+		
+		/// destroy Private Forward Managers.
+		StringMapSnapshot snap = this.pf_managers.Snapshot();
+		if( snap != null ) {
+			int len = snap.Length;
+			for( int i; i < len; i++ ) {
+				int keysize = snap.KeyBufferSize(i) + 1;
+				char[] name = new char[keysize];
+				snap.GetKey(i, name, keysize);
+				
+				PrivateFwdsManager pfm;
+				if( !this.pf_managers.GetArray(name, pfm, sizeof(pfm)) ) {
+					break;
+				}
+				
+				pfm.Destroy();
+			}
+			delete snap;
+		}
+		delete this.pf_managers;
+		
+		/// destroy Module Managers.
+		snap = this.pl_managers.Snapshot();
+		if( snap != null ) {
+			int len = snap.Length;
+			for( int i; i < len; i++ ) {
+				int keysize = snap.KeyBufferSize(i) + 1;
+				char[] name = new char[keysize];
+				snap.GetKey(i, name, keysize);
+				
+				ModuleManager mm;
+				if( !this.pl_managers.GetArray(name, mm, sizeof(mm)) ) {
+					break;
+				}
+				
+				mm.Destroy();
+			}
+			delete snap;
+		}
+		delete this.pl_managers;
+	}
 }
 
 ModuleManagerPlugin g_mmp;
