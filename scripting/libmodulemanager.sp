@@ -61,7 +61,7 @@ enum struct ModuleManagerPlugin {
 				
 				PrivateFwdsManager pfm;
 				if( !this.pf_managers.GetArray(name, pfm, sizeof(pfm)) ) {
-					break;
+					continue;
 				}
 				
 				pfm.Destroy();
@@ -81,7 +81,7 @@ enum struct ModuleManagerPlugin {
 				
 				ModuleManager mm;
 				if( !this.pl_managers.GetArray(name, mm, sizeof(mm)) ) {
-					break;
+					continue;
 				}
 				
 				mm.Destroy();
