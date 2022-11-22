@@ -203,7 +203,7 @@ stock int LibModuleManager_NumModules(ManagerID id) {
  * PluginModule[] modules = new PluginModule[len];
  * Then pass it to this function to sort out.
  */
-stock bool LibModuleManager_GetModulesByPriority(ManagerID id, PluginModule[] modules) {
+stock bool LibModuleManager_GetModulesByPriority(ManagerID id, PluginModule[] modules, int num_modules) {
 	ModuleManager mm;
 	if( !LibModuleManager_GetModuleManager(id, mm) ) {
 		return false;
@@ -215,6 +215,7 @@ stock bool LibModuleManager_GetModulesByPriority(ManagerID id, PluginModule[] mo
 	}
 	
 	int len = snap.Length;
+	len = (len >= num_modules)? num_modules : len;
 	for( int i; i < len; i++ ) {
 		int keysize = snap.KeyBufferSize(i) + 1;
 		char[] name = new char[keysize];
