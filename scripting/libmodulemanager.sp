@@ -12,7 +12,7 @@ public Plugin myinfo = {
 	author      = "Nergal",
 	description = "Plugin that manages systems of subplugins.",
 	version     = PLUGIN_VERSION,
-	url         = "zzzzzzzzzzzzz"
+	url         = "https://github.com/assyrianic/LibModuleManager"
 };
 
 
