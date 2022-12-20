@@ -31,7 +31,9 @@ Each type of manager has different strengths to them.
 
 ## How To Use
 
--- For creating Global Forwards, check out `configs/plugin_manager/global_fwds.cfg` to see an example config file on setting up forwards and modify/add forwards as needed.
+### Creating Global Forwards
+
+check out `configs/plugin_manager/global_fwds.cfg` to see an example config file on setting up forwards and modify/add forwards as needed.
 
 Here's a code example, remember that there's only ever _one_ Global Forward manager [pointless to have and manage multiple].
 ```cs
@@ -65,7 +67,9 @@ fwd_example.Finish(result);
 ```
 
 
--- For creating Private Forwards for a specific Private Forward Manager, check out `configs/plugin_manager/private_fwds_example.cfg` for an _example_ on Private Forward creation. **Remember that each private forward manager requires a cfg file for what private forwards you want, you can use the same cfg file if they will all share the same private forwards**.
+### Creating Private Forwards for a specific Private Forward Manager
+
+check out `configs/plugin_manager/private_fwds_example.cfg` for an _example_ on Private Forward creation. **Remember that each private forward manager requires a cfg file for what private forwards you want, you can use the same cfg file if they will all share the same private forwards**.
 
 Here's example code on creating and using a private forward manager:
 ```cs
@@ -78,7 +82,9 @@ ManagerID priv_fwd_id = LibModSys_MakePrivateFwdsManager("configs/my_plugin/priv
 LibModSys_PrivateFwdHook(priv_fwd_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
 ```
 
--- For creating Module Managers, check out `configs/plugin_manager/module_manager_example.cfg` for an example on how to setup the operations for specific Module Managers. Module Managers are more useful for cases when global or private forwards aren't enough and/or you need more control of plugins.
+### Creating Module Managers
+
+check out `configs/plugin_manager/module_manager_example.cfg` for an example on how to setup the operations for specific Module Managers. Module Managers are more useful for cases when global or private forwards aren't enough and/or you need more control of plugins.
 
 ```cs
 /// like using with private forward managers,
@@ -127,6 +133,7 @@ any result;
 call.Cancel(); | call.Finish(result);
 ```
 
+### `SharedMap` and Data Sharing/Control.
 For setting up data sharing and control, You need a core plugin that will setup the `SharedMap` that will be used with all the subplugins/modules that will communicate with the core. What you need to do is to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModSys`. There we will create the `SharedMap` under a channel name of your own choosing!
 
 Remember this information though:
