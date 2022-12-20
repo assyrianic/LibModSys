@@ -1055,7 +1055,7 @@ stock void PawnAwait(Function func, float thinktime=0.1, const any[] args, const
 	for( int i; i < len; i++ ) {
 		thinkpack.WriteCell(args[i]);
 	}
-	CreateTimer(thinktime, RunPawnAwait, thinkpack, TIMER_DATA_HNDL_CLOSE|TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(thinktime, RunPawnAwait, thinkpack, TIMER_DATA_HNDL_CLOSE|TIMER_REPEAT);
 }
 
 public Action RunPawnAwait(Handle t, DataPack pack) {
