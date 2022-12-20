@@ -115,7 +115,7 @@ call.PushNullVec3();
 
 call.PushCell(100/true);
 
-bool/int x;
+bool|int x;
 call.PushCellRef(x);
 
 call.PushFloat(0.5);
