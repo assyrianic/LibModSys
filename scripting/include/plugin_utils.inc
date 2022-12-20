@@ -29,7 +29,6 @@
 #define _plugin_utils_included
 
 #include <sdktools>
-#include <arraymap>
 #include <cfgmap>
 
 
@@ -37,31 +36,34 @@ enum { /** some basic, commonly used "defines" */
 	MAX_FWD_PARAMS = 32,
 	BASE_PATH      = 64,
 	OS_MAX_PATH    = PLATFORM_MAX_PATH,
+	ENTITY_LIMIT   = 2049,
 };
 
 
-enum { /// Type information for sending to modules.
-	Any, Char, Int, Float, tHandle, Enum, MethodMap, Func,
-	ArrayType = 1 << 3,
-	/// Char   + ArrayType == char[].
-	/// Int    + ArrayType == int[].
-	/// Float  + ArrayType == float[].
-	/// Handle + ArrayType == Handle[].
-	/// Any    + ArrayType == any[]/enum struct.
-	/// Enum   + ArrayType == Enum[]/int[].
-	/// MethodMap+ArrayType== MethodMap[]/int[].
-	/// Func   + ArrayType == Func[].
+enum SPType { /// Type information for sending to modules.
+	InvalidType,
+	AnyType, CharType, IntType, FloatType, HandleType,
+	FuncType, EnumType, MethodMapType, BoolType, VecType,
+	ArrayType = 1 << 4, /// 16
+	/// CharType   + ArrayType == char[].
+	/// IntType    + ArrayType == int[].
+	/// FloatType  + ArrayType == float[].
+	/// HandleType + ArrayType == Handle[].
+	/// AnyType    + ArrayType == any[]/enum struct.
+	/// FuncType   + ArrayType == function[].
 };
 
 enum ManagerID {
 	InvalidManagerID = 0,
 };
 
-stock int ManagerIDToInt(ManagerID id) {
-	return view_as< int >(id);
+
+stock int AnyToInt(any a) {
+	return a;
 }
-stock ManagerID IntToManagerID(int i) {
-	return view_as< ManagerID >(i);
+
+stock any IntToAny(int i) {
+	return i;
 }
 
 
@@ -460,11 +462,11 @@ stock GlobalForward MakeGlobalForward(const char[] name, ExecType et, const Para
 
 
 enum struct GlobalFwd {
-	GlobalForward gf;
-	ParamType     param_type[MAX_FWD_PARAMS];
-	int           param_count;
-	ExecType      exec_type;
-	Callable      callable;
+	GlobalForward  gf;
+	ParamType      param_type[MAX_FWD_PARAMS];
+	int            param_count;
+	ExecType       exec_type;
+	Callable       callable;
 	
 	
 	int Count() {
@@ -933,10 +935,23 @@ stock void PackCellToStr(any key, char buffer[CELL_KEY_SIZE]) {
 	buffer[4] = ((k >> (7 * 0)) & 0x7F) | 0x80;
 	buffer[5] = 0x00;
 }
+stock any StrToPackCell(const char cell_str[CELL_KEY_SIZE]) {
+	int k = 0;
+	k |= ((cell_str[0] & ~0x80) & 0x7f) << (7 * 4);
+	k |= ((cell_str[1] & ~0x80) & 0x7f) << (7 * 3);
+	k |= ((cell_str[2] & ~0x80) & 0x7f) << (7 * 2);
+	k |= ((cell_str[3] & ~0x80) & 0x7f) << (7 * 1);
+	k |= ((cell_str[4] & ~0x80) & 0x7f) << (7 * 0);
+	return k;
+}
 
 
 stock bool IsClientValid(int player) {
 	return( 0 < player <= MaxClients && IsClientInGame(player) );
+}
+
+stock bool IsEntityValid(int entity) {
+	return MaxClients < entity < ENTITY_LIMIT && IsValidEntity(entity);
 }
 
 stock bool IsCamBot(int client) {
@@ -1006,7 +1021,7 @@ stock void MakePawnTimer(Function func, float thinktime=0.1, const any[] args, c
 	for( int i; i < len; i++ ) {
 		thinkpack.WriteCell(args[i]);
 	}
-	CreateTimer(thinktime, RunPawnFunc, thinkpack, TIMER_DATA_HNDL_CLOSE);
+	CreateTimer(thinktime, RunPawnFunc, thinkpack, TIMER_DATA_HNDL_CLOSE|TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action RunPawnFunc(Handle t, DataPack pack) {
@@ -1029,6 +1044,40 @@ public Action RunPawnFunc(Handle t, DataPack pack) {
 	}
 	Call_Finish();
 	return Plugin_Continue;
+}
+
+
+stock void PawnAwait(Function func, float thinktime=0.1, const any[] args, const int len, bool as_array=false) {
+	DataPack thinkpack = new DataPack();
+	thinkpack.WriteFunction(func);
+	thinkpack.WriteCell(len);
+	thinkpack.WriteCell(as_array);
+	for( int i; i < len; i++ ) {
+		thinkpack.WriteCell(args[i]);
+	}
+	CreateTimer(thinktime, RunPawnAwait, thinkpack, TIMER_DATA_HNDL_CLOSE|TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public Action RunPawnAwait(Handle t, DataPack pack) {
+	pack.Reset();
+	Function fn = pack.ReadFunction();
+	Call_StartFunction(null, fn);
+	
+	int len = pack.ReadCell();
+	bool as_array = pack.ReadCell();
+	if( as_array ) {
+		any[] parms = new any[len];
+		for( int i; i < len; i++ ) {
+			parms[i] = pack.ReadCell();
+		}
+		Call_PushArray(parms, len);
+	} else {
+		for( int i; i < len; i++ ) {
+			Call_PushCell(pack.ReadCell());
+		}
+	}
+	bool result; Call_Finish(result);
+	return result? Plugin_Stop : Plugin_Continue;
 }
 
 
@@ -1099,4 +1148,154 @@ stock int PrepareModel(const char[] model_path, bool model_only=false) {
 		CheckDownload(model_path);
 	}
 	return PrecacheModel(model_path, true);
+}
+
+
+/// map[string]bool | unordered_map< string, bool >
+/*
+methodmap StringSet < StringMap {
+	public StringSet() {
+		return view_as< StringSet >( new StringMap() );
+	}
+	
+	property StringMap AsStringMap {
+		public get() { return view_as< StringMap >(this); }
+	}
+	
+	public bool HasString(const char[] key) {
+		return this.ContainsKey(key);
+	}
+	
+	public bool AddString(const char[] key) {
+		return this.SetValue(key, true);
+	}
+	
+	public bool RemoveString(const char[] key) {
+		return this.Remove(key);
+	}
+	
+	public bool HasCell(any key) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.ContainsKey(key_str);
+	}
+	
+	public bool AddCell(any key) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.SetValue(key_str, true);
+	}
+	
+	public bool RemoveCell(any key) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.Remove(key_str);
+	}
+}
+
+
+methodmap CellMap < StringMap {
+	public CellMap() {
+		return view_as< CellMap >( new StringMap() );
+	}
+	
+	property StringMap AsStringMap {
+		public get() { return view_as< StringMap >(this); }
+	}
+	
+	public CellMap Clone() {
+		return this.AsStringMap.Clone();
+	}
+	
+	public bool SetValue(any key, any value, bool replace=true) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.SetValue(key_str, value, replace);
+	}
+	
+	public bool SetArray(any key, const any[] array, int num_items, bool replace=true) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.SetArray(key_str, array, num_items, replace);
+	}
+	
+	public bool SetString(any key, const char[] value, bool replace=true) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.SetString(key_str, value, replace);
+	}
+	
+	public bool GetValue(any key, any &value) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.GetValue(key_str, value);
+	}
+	
+	public bool GetArray(any key, any[] array, int max_size, int &size=0) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.GetArray(key_str, array, max_size, size);
+	}
+	
+	public bool GetString(any key, char[] value, int max_size, int &size=0) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.GetString(key_str, value, max_size, size);
+	}
+	
+	public bool ContainsKey(any key) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.ContainsKey(key_str);
+	}
+	
+	public bool Remove(any key) {
+		char key_str[CELL_KEY_SIZE];
+		PackCellToStr(key, key_str);
+		return this.AsStringMap.Remove(key_str);
+	}
+}
+*/
+
+
+/// destroys a StringMap of handle types.
+stock void DestroyMapOfHandles(StringMap &strmap) {
+	if( strmap==null ) {
+		return;
+	}
+	
+	StringMapSnapshot snap = strmap.Snapshot();
+	if( snap==null ) {
+		return;
+	}
+	
+	int len = snap.Length;
+	for( int i; i < len; i++ ) {
+		int keysize = snap.KeyBufferSize(i) + 1;
+		char[] key = new char[keysize];
+		snap.GetKey(i, key, keysize);
+		
+		Handle a; strmap.GetValue(key, a);
+		delete a;
+	}
+	delete snap;
+	delete strmap;
+}
+
+stock int highest_bit_index(int n) {
+	int bit_index = 1;
+	for( int i = n >>> 1; i > 0; i >>>= 1 ) {
+		bit_index++;
+	}
+	return bit_index - 1;
+}
+
+stock bool IsValidPlugin(Handle plugin) {
+	PluginIterator iter = new PluginIterator();
+	bool res = false;
+	while( iter.Next() && !res ) {
+		res = iter.Plugin == plugin;
+	}
+	delete iter;
+	return res;
 }

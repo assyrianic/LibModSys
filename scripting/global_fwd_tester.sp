@@ -4,7 +4,7 @@
 #pragma semicolon         1
 #pragma newdecls          required
 
-#define PLUGIN_VERSION    "1.0.0"
+#define PLUGIN_VERSION    "1.1.0"
 
 
 public Plugin myinfo = {
@@ -33,7 +33,18 @@ public void OnLibraryAdded(const char[] name) {
 		Handle pl = LibModuleManager_GetModuleHandle(mm_id, "global_fwd_tester");
 		Handle me = GetMyHandle();
 		PrintToServer("pl == me: '%i'", pl==me);
+		
+		PawnAwait(AwaitChannel, 0.25, {0}, 0);
 	}
+}
+
+static SharedMap g_shmap;
+public bool AwaitChannel() {
+	if( !LibModuleManager_ChannelExists("global_fwd_tester") ) {
+		return false;
+	}
+	g_shmap = SharedMap("global_fwd_tester");
+	return true;
 }
 
 public Action OnGlobalFwdExampleName(int p1, any p2, const char[] p3, int &p4, float &p5) {

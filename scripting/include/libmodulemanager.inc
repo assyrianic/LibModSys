@@ -66,7 +66,7 @@ stock int LibModuleManager_GlobalFwdFuncCount(const char[] fwd_name) {
  * Example usage:
  * ```cs
     /// Making manager + getting its 'handle'.
-    ManagerID boss_manager = LibModuleManager_MakePrivateFwdsManager("configs/myplugin/boss_forwards.cfg");
+    ManagerID boss_manager = LibModuleManager_MakePrivateFwdsManager("configs/my_plugin_folder/forwards.cfg");
     
     /// grabbing private forward.
     PrivateFwd pf;
@@ -328,7 +328,6 @@ stock int LibModuleManager_GetModulesByFlags(ManagerID id, PluginModule[] module
 }
 
 
-
 /**
  * Let's you call a forward in a linear fashion.
  * to execute a Global  fwd, pass 0 as the manager id.
@@ -337,6 +336,74 @@ stock int LibModuleManager_GetModulesByFlags(ManagerID id, PluginModule[] module
  * CAN'T BE DONE.
  */
 //native bool LibModuleManager_ExecForward(ManagerID id, const char[] name, any &result=0, ...);
+
+
+
+/// Shared Map.
+/// For plugins and their systems be able to share data.
+/// Besides having additional data to set, SharedMaps can LOCK specific props.
+/// thus preventing non-owning plugins from removing and/or changing the data.
+/// for SPType, here's the list:
+///     AnyType, CharType, IntType, FloatType, HandleType,
+///     FuncType, EnumType, MethodMapType, BoolType,
+methodmap SharedMap {
+	public native SharedMap(const char[] channel);
+	
+	public native bool   GetInt(const char[] prop, int &i);
+	public native bool   GetFloat(const char[] prop, float &f);
+	public native bool   GetAny(const char[] prop, any &a, SPType sp_type=AnyType);
+	
+	/// -1 on error. returns 'len' on success.
+	public native int    GetStrLen(const char[] prop);
+	public native int    GetStr(const char[] prop, char[] buf, int len);
+	public native int    GetArrLen(const char[] prop);
+	public native int    GetArr(const char[] prop, any[] buf, int len, SPType sp_type=AnyType);
+	
+	/// gets owner who set the property.
+	/// can be null if owner was unloaded/crashed.
+	public native Handle GetOwner(const char[] prop);
+	
+	public native bool   SetInt(const char[] prop, int value);
+	public native bool   SetFloat(const char[] prop, float value);
+	public native bool   SetAny(const char[] prop, any value, SPType sp_type=AnyType);
+	public native bool   SetStr(const char[] prop, const char[] value);
+	public native bool   SetArr(const char[] prop, const any[] value, int len, SPType sp_type=AnyType);
+	
+	public native bool   Has(const char[] prop);
+	public native SPType TypeOf(const char[] prop);
+	public native bool   Delete(const char[] prop);
+	
+	/// Locked properties cannot be deleted except by the plugin who set the property first.
+	/// -1 if error, 0 if not locked, 1 if locked.
+	public native int    IsLocked(const char[] prop);
+	/// Frozen properties cannot be changed/modified/set except by the plugin who set the property first.
+	/// -1 if error, 0 if not frozen, 1 if frozen.
+	public native int    IsFrozen(const char[] prop);
+	
+	/// NOTE: a prop with no owner cannot be [un]locked or [un]frozen.
+	public native bool   Lock(const char[] prop);
+	public native bool   Unlock(const char[] prop);
+	public native bool   Freeze(const char[] prop);
+	public native bool   Unfreeze(const char[] prop);
+	
+	public bool Protect(const char[] prop) {
+		return this.Lock(prop) && this.Freeze(prop);
+	}
+	
+	public bool Unprotect(const char[] prop) {
+		return this.Unlock(prop) && this.Unfreeze(prop);
+	}
+	
+	/// -1 if error.
+	property int Len {
+		public native get();
+	}
+};
+
+
+native bool LibModuleManager_DestroySharedMap(const char[] channel);
+native bool LibModuleManager_ClearSharedMap(const char[] channel);
+native bool LibModuleManager_ChannelExists(const char[] channel);
 
 
 public SharedPlugin __pl_libmodulemanager = {
@@ -364,5 +431,40 @@ public void __pl_libmodulemanager_SetNTVOptional() {
 	MarkNativeAsOptional("LibModuleManager_GetModuleManager");
 	MarkNativeAsOptional("LibModuleManager_RegisterModule");
 	MarkNativeAsOptional("LibModuleManager_UnregisterModule");
+	
+	
+	MarkNativeAsOptional("SharedMap.SharedMap");
+	
+	MarkNativeAsOptional("SharedMap.GetInt");
+	MarkNativeAsOptional("SharedMap.GetFloat");
+	MarkNativeAsOptional("SharedMap.GetAny");
+	MarkNativeAsOptional("SharedMap.GetStrLen");
+	MarkNativeAsOptional("SharedMap.GetStr");
+	MarkNativeAsOptional("SharedMap.GetArrLen");
+	MarkNativeAsOptional("SharedMap.GetArr");
+	MarkNativeAsOptional("SharedMap.GetOwner");
+	
+	MarkNativeAsOptional("SharedMap.SetInt");
+	MarkNativeAsOptional("SharedMap.SetFloat");
+	MarkNativeAsOptional("SharedMap.SetAny");
+	MarkNativeAsOptional("SharedMap.SetStr");
+	MarkNativeAsOptional("SharedMap.SetArr");
+	
+	MarkNativeAsOptional("SharedMap.Has");
+	MarkNativeAsOptional("SharedMap.TypeOf");
+	MarkNativeAsOptional("SharedMap.Delete");
+	
+	MarkNativeAsOptional("SharedMap.IsLocked");
+	MarkNativeAsOptional("SharedMap.IsFrozen");
+	
+	MarkNativeAsOptional("SharedMap.Lock");
+	MarkNativeAsOptional("SharedMap.Unlock");
+	MarkNativeAsOptional("SharedMap.Freeze");
+	MarkNativeAsOptional("SharedMap.Unfreeze");
+	MarkNativeAsOptional("SharedMap.Len.get");
+	
+	MarkNativeAsOptional("LibModuleManager_DestroySharedMap");
+	MarkNativeAsOptional("LibModuleManager_ClearSharedMap");
+	MarkNativeAsOptional("LibModuleManager_ChannelExists");
 }
 #endif

@@ -16,9 +16,8 @@ public Plugin myinfo = {
 };
 
 
-//public void OnMapStart(const char[] mapName) {
 //public void OnPluginStart() {
-public void OnConfigsExecuted() {
+public void OnMapStart() {
 	PrintToServer("==================== LibModuleManagerTester Is Online");
 	GlobalFwd fwd_example;
 	LibModuleManager_GetGlobalFwd("OnGlobalFwdExampleName", fwd_example);
@@ -36,7 +35,7 @@ public void OnConfigsExecuted() {
 	
 	
 	PrivateFwd pf;
-	if( !LibModuleManager_GetPrivateFwd(IntToManagerID(1), "OnPrivFwdExampleName", pf) ) {
+	if( !LibModuleManager_GetPrivateFwd(IntToAny(1), "OnPrivFwdExampleName", pf) ) {
 		PrintToServer("LibModuleManagerTester PrivateFwd :: Error **** Couldn't get private fwd for 'OnPrivFwdExampleName' ****");
 		return;
 	}
