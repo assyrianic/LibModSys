@@ -1,4 +1,4 @@
-# LibModuleManager
+# LibModSys
 A runtime/plugin-based, inter-plugin communication library for SourceMod.
 
 
@@ -14,10 +14,10 @@ To reduce the boilerplate needed to setup and create forwards and to simplify in
 * Global Forwards Manager - controlled and managed via Config file.
 -- Let's you rapidly create and execute Global Forwards without needing to recompile plugins.
 
-* Private Forward Managers - Any plugin using libmodulemanager can request one or more private forward managers, each individually controlled by a config file.
+* Private Forward Managers - Any plugin using libmodsys can request one or more private forward managers, each individually controlled by a config file.
 -- Let's you rapidly create and execute Private Forwards without needing to recompile plugins.
 
-* Module/Plugin Managers - Any plugin using libmodulemanager, just like the Private Forward Managers, can request one or more Plugin Managers.
+* Module/Plugin Managers - Any plugin using libmodsys, just like the Private Forward Managers, can request one or more Plugin Managers.
 
 Each type of manager has different strengths to them.
 
@@ -38,7 +38,7 @@ Here's a code example, remember that there's only ever _one_ Global Forward mana
 /// get a global forward object from
 /// the forward set up in `configs/plugin_manager/global_fwds.cfg`.
 GlobalFwd fwd_example;
-LibModuleManager_GetGlobalFwd("OnGlobalFwdExampleName", fwd_example);
+LibModSys_GetGlobalFwd("OnGlobalFwdExampleName", fwd_example);
 
 /// starts the global forward call
 fwd_example.Start();
@@ -71,11 +71,11 @@ Here's example code on creating and using a private forward manager:
 ```cs
 /// the actual manager is dealt with by the plugin-library.
 /// you get a manager id to refer to that specific manager.
-ManagerID priv_fwd_id = LibModuleManager_MakePrivateFwdsManager("configs/my_plugin/private_fwds.cfg");
+ManagerID priv_fwd_id = LibModSys_MakePrivateFwdsManager("configs/my_plugin/private_fwds.cfg");
 
 /// using the manager id, we can directly hook to a specific forward!
 /// thus saving you alot of boilerplate of having to set up a hook/unhook system!
-LibModuleManager_PrivateFwdHook(priv_fwd_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
+LibModSys_PrivateFwdHook(priv_fwd_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
 ```
 
 -- For creating Module Managers, check out `configs/plugin_manager/module_manager_example.cfg` for an example on how to setup the operations for specific Module Managers. Module Managers are more useful for cases when global or private forwards aren't enough and/or you need more control of plugins.
@@ -85,20 +85,20 @@ LibModuleManager_PrivateFwdHook(priv_fwd_id, "OnPrivFwdExampleName", OnPrivateFw
 /// module managers are referred to by id.
 /// module manager config files let you define what plugins
 /// to load either by prefix or manual registration.
-ManagerID module_manager_id = LibModuleManager_MakeModuleManager("configs/my_plugin/module_manager.cfg");
+ManagerID module_manager_id = LibModSys_MakeModuleManager("configs/my_plugin/module_manager.cfg");
 
 /// if manual registration is demanded.
 /// this native will register the plugin that's calling it to a string name id.
-LibModuleManager_RegisterModule(module_manager_id, "subplugin_1");
+LibModSys_RegisterModule(module_manager_id, "subplugin_1");
 
 /// the plugin can also be unregistered.
 /// 
-LibModuleManager_UnregisterModule(module_manager_id, "subplugin_1");
+LibModSys_UnregisterModule(module_manager_id, "subplugin_1");
 
 ...
 
 /// with this, you can grab plugin handles by the module name.
-Handle pl = LibModuleManager_GetModuleHandle(module_manager_id, "subplugin_1");
+Handle pl = LibModSys_GetModuleHandle(module_manager_id, "subplugin_1");
 
 /// convenience object that helps simplifies forward/function calls a bit.
 Callable call;
@@ -127,7 +127,7 @@ any result;
 call.Cancel(); | call.Finish(result);
 ```
 
-For setting up data sharing and control, You need a core plugin that will setup the `SharedMap` that will be used with all the subplugins/modules that will communicate with the core. What you need to do is to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModuleManager`. There we will create the `SharedMap` under a channel name of your own choosing!
+For setting up data sharing and control, You need a core plugin that will setup the `SharedMap` that will be used with all the subplugins/modules that will communicate with the core. What you need to do is to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModSys`. There we will create the `SharedMap` under a channel name of your own choosing!
 
 Remember this information though:
 
@@ -137,7 +137,7 @@ Remember this information though:
 
 ```cs
 public void OnLibraryAdded(const char[] name) {
-	if( StrEqual(name, "LibModuleManager") ) {
+	if( StrEqual(name, "LibModSys") ) {
 		SharedMap dict = SharedMap("my_plugin");
 		
 		/// create's a property,
@@ -153,11 +153,11 @@ public void OnLibraryAdded(const char[] name) {
 With the core plugin having setup the `SharedMap` and the data channel, you're now ready to share data with subplugins/modules that will work with the core plugin.
 
 
-Like the core plugin, you need to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModuleManager`. However, with a subplugin/module, we need to use `PawnAwait` to create a Timer that'll _wait_ [checks and repeats basically] for the channel that will have the `SharedMap` we need from the core plugin. The function that you give to `PawnAwait` needs to return a `bool`. The timer will stop repeating and close when the function it uses returns `true`. A `false` return value will make the timer repeat again.
+Like the core plugin, you need to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModSys`. However, with a subplugin/module, we need to use `PawnAwait` to create a Timer that'll _wait_ [checks and repeats basically] for the channel that will have the `SharedMap` we need from the core plugin. The function that you give to `PawnAwait` needs to return a `bool`. The timer will stop repeating and close when the function it uses returns `true`. A `false` return value will make the timer repeat again.
 
 ```cs
 public void OnLibraryAdded(const char[] name) {
-	if( StrEqual(name, "LibModuleManager") ) {
+	if( StrEqual(name, "LibModSys") ) {
 		/// `PawnAwait` is in plugin_utils.inc
 		PawnAwait(AwaitChannel, 0.25, {0}, 0);
 	}
@@ -167,7 +167,7 @@ public void OnLibraryAdded(const char[] name) {
 static SharedMap g_shmap;
 
 public bool AwaitChannel() {
-	if( !LibModuleManager_ChannelExists("my_plugin") ) {
+	if( !LibModSys_ChannelExists("my_plugin") ) {
 		return false;
 	}
 	g_shmap = SharedMap("my_plugin");
@@ -176,3 +176,4 @@ public bool AwaitChannel() {
 ```
 
 It's important to remember that you can use the `SharedMap` map constructor to _retrieve_ a `SharedMap` from a specific channel. Inputing a different channel name [this includes typos] will open a new channel and create a new `SharedMap` for that plugin as the owner. This also allows a plugin dev to have specific and/or _tiered_ `SharedMap`s to be used as the data set for a group of subplugins/modules.
+

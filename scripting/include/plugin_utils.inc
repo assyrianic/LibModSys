@@ -902,7 +902,7 @@ enum struct ModuleManager {
 		do {
 			Handle p = ReadPlugin(iter);
 			if( p==me ) {
-				/// ignore the libmodulemanager.
+				/// ignore libmodsys.
 				continue;
 			}
 			

@@ -1,5 +1,5 @@
 #include <sdktools>
-#include <libmodulemanager>
+#include <libmodsys>
 
 #pragma semicolon         1
 #pragma newdecls          required
@@ -8,29 +8,29 @@
 
 
 public Plugin myinfo = {
-	name        = "LibModuleManagerTester-GlobalFwd",
+	name        = "LibModSysTester-GlobalFwd",
 	author      = "Nergal",
-	description = "Plugin that tests LibModuleManager.",
+	description = "Plugin that tests LibModSys.",
 	version     = PLUGIN_VERSION,
 	url         = "zzzzzzzzzzzzz"
 };
 
 
 public void OnLibraryAdded(const char[] name) {
-	if( StrEqual(name, "LibModuleManager") ) {
-		PrintToServer("Library 'LibModuleManager' is loaded!!");
-		ManagerID test_id = LibModuleManager_MakePrivateFwdsManager("configs/plugin_manager/private_fwds.cfg");
-		LibModuleManager_PrivateFwdHook(test_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
+	if( StrEqual(name, "LibModSys") ) {
+		PrintToServer("Library 'LibModSys' is loaded!!");
+		ManagerID test_id = LibModSys_MakePrivateFwdsManager("configs/plugin_manager/private_fwds.cfg");
+		LibModSys_PrivateFwdHook(test_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
 		
-		ManagerID mm_id = LibModuleManager_MakeModuleManager("configs/plugin_manager/module_manager.cfg");
+		ManagerID mm_id = LibModSys_MakeModuleManager("configs/plugin_manager/module_manager.cfg");
 		ModuleManager mm;
-		LibModuleManager_GetModuleManager(mm_id, mm);
+		LibModSys_GetModuleManager(mm_id, mm);
 		mm.Print();
 		
-		Function f = LibModuleManager_GetModuleFunc(mm_id, "global_fwd_tester", "OnGlobalFwdExampleName");
+		Function f = LibModSys_GetModuleFunc(mm_id, "global_fwd_tester", "OnGlobalFwdExampleName");
 		PrintToServer("f == OnGlobalFwdExampleName: '%i'", f == OnGlobalFwdExampleName);
 		
-		Handle pl = LibModuleManager_GetModuleHandle(mm_id, "global_fwd_tester");
+		Handle pl = LibModSys_GetModuleHandle(mm_id, "global_fwd_tester");
 		Handle me = GetMyHandle();
 		PrintToServer("pl == me: '%i'", pl==me);
 		
@@ -40,7 +40,7 @@ public void OnLibraryAdded(const char[] name) {
 
 static SharedMap g_shmap;
 public bool AwaitChannel() {
-	if( !LibModuleManager_ChannelExists("global_fwd_tester") ) {
+	if( !LibModSys_ChannelExists("global_fwd_tester") ) {
 		return false;
 	}
 	g_shmap = SharedMap("global_fwd_tester");
