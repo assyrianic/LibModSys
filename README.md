@@ -33,9 +33,99 @@ Each type of manager has different strengths to them.
 
 -- For creating Global Forwards, check out `configs/plugin_manager/global_fwds.cfg` to see an example config file on setting up forwards and modify/add forwards as needed.
 
+Here's a code example, remember that there's only ever _one_ Global Forward manager [pointless to have and manage multiple].
+```cs
+/// get a global forward object from
+/// the forward set up in `configs/plugin_manager/global_fwds.cfg`.
+GlobalFwd fwd_example;
+LibModuleManager_GetGlobalFwd("OnGlobalFwdExampleName", fwd_example);
+
+/// starts the global forward call
+fwd_example.Start();
+
+	/// push ints.
+	fwd_example.PushCell(100);
+	fwd_example.PushCell(200);
+
+	/// push string.
+	char s2[] = "hello from global fwd";
+	fwd_example.PushString(s2, sizeof(s2));
+
+	/// push int as ref.
+	int ref1;
+	fwd_example.PushCellRef(ref1);
+
+	/// push float as ref.
+	float ref2;
+	fwd_example.PushFloatRef(ref2);
+
+/// end call and get result.
+Action result;
+fwd_example.Finish(result);
+```
+
+
 -- For creating Private Forwards for a specific Private Forward Manager, check out `configs/plugin_manager/private_fwds_example.cfg` for an _example_ on Private Forward creation. **Remember that each private forward manager requires a cfg file for what private forwards you want, you can use the same cfg file if they will all share the same private forwards**.
 
--- For creating Module Managers, check out `configs/plugin_manager/module_manager_example.cfg` for an example on how to setup the operations for specific Module Managers.
+Here's example code on creating and using a private forward manager:
+```cs
+/// the actual manager is dealt with by the plugin-library.
+/// you get a manager id to refer to that specific manager.
+ManagerID priv_fwd_id = LibModuleManager_MakePrivateFwdsManager("configs/my_plugin/private_fwds.cfg");
+
+/// using the manager id, we can directly hook to a specific forward!
+/// thus saving you alot of boilerplate of having to set up a hook/unhook system!
+LibModuleManager_PrivateFwdHook(priv_fwd_id, "OnPrivFwdExampleName", OnPrivateFwdTest);
+```
+
+-- For creating Module Managers, check out `configs/plugin_manager/module_manager_example.cfg` for an example on how to setup the operations for specific Module Managers. Module Managers are more useful for cases when global or private forwards aren't enough and/or you need more control of plugins.
+
+```cs
+/// like using with private forward managers,
+/// module managers are referred to by id.
+/// module manager config files let you define what plugins
+/// to load either by prefix or manual registration.
+ManagerID module_manager_id = LibModuleManager_MakeModuleManager("configs/my_plugin/module_manager.cfg");
+
+/// if manual registration is demanded.
+/// this native will register the plugin that's calling it to a string name id.
+LibModuleManager_RegisterModule(module_manager_id, "subplugin_1");
+
+/// the plugin can also be unregistered.
+/// 
+LibModuleManager_UnregisterModule(module_manager_id, "subplugin_1");
+
+...
+
+/// with this, you can grab plugin handles by the module name.
+Handle pl = LibModuleManager_GetModuleHandle(module_manager_id, "subplugin_1");
+
+/// convenience object that helps simplifies forward/function calls a bit.
+Callable call;
+call.StartFunc(pl, "OnFunc");
+
+int Ints[5];
+call.PushArray(Ints, sizeof(Ints));
+
+char Str[] = "top lel";
+call.PushString(Str, sizeof(Str));
+
+call.PushNullString();
+call.PushNullVec3();
+
+call.PushCell(100/true);
+
+bool/int x;
+call.PushCellRef(x);
+
+call.PushFloat(0.5);
+
+float f;
+call.PushFloatRef(f);
+
+any result;
+call.Cancel(); | call.Finish(result);
+```
 
 For setting up data sharing and control, You need a core plugin that will setup the `SharedMap` that will be used with all the subplugins/modules that will communicate with the core. What you need to do is to first use the `OnLibraryAdded` forward, specifically checking for if the name is `LibModuleManager`. There we will create the `SharedMap` under a channel name of your own choosing!
 
