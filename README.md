@@ -145,6 +145,7 @@ Remember this information though:
 ```cs
 public void OnLibraryAdded(const char[] name) {
 	if( StrEqual(name, "LibModSys") ) {
+		/// create new channel for SharedMap under "my_plugin".
 		SharedMap dict = SharedMap("my_plugin");
 		
 		/// create's a property,
@@ -170,14 +171,13 @@ public void OnLibraryAdded(const char[] name) {
 	}
 }
 
-
-static SharedMap g_shmap;
-
 public bool AwaitChannel() {
 	if( !LibModSys_ChannelExists("my_plugin") ) {
 		return false;
 	}
-	g_shmap = SharedMap("my_plugin");
+	/// If code runs this part, that means core finished setting up "my_plugin" channel.
+	SharedMap shmap = SharedMap("my_plugin");
+	/// setup data.
 	return true;
 }
 ```
