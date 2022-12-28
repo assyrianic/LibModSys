@@ -176,6 +176,8 @@ public bool AwaitChannel() {
 		return false;
 	}
 	/// If code runs this part, that means core finished setting up "my_plugin" channel.
+	/// constructor call here does NOT create a new SharedMap but instead
+	/// gives you the one created when core initialized the channel and [when core] created the SharedMap.
 	SharedMap shmap = SharedMap("my_plugin");
 	/// setup data.
 	return true;
