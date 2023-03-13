@@ -166,8 +166,11 @@ enum struct ModuleManagerPlugin {
 		}
 		delete this.pl_managers;
 		
+		StringMap          shmap_managers; /// map[string]ManagerID
+		StringMap          shmap_ids;      /// map[ManagerID]SharedMap
+		
 		/// destroy SharedMaps.
-		snap = this.shmap_managers.Snapshot();
+		snap = this.shmap_ids.Snapshot();
 		if( snap != null ) {
 			int len = snap.Length;
 			for( int i; i < len; i++ ) {
@@ -176,7 +179,7 @@ enum struct ModuleManagerPlugin {
 				snap.GetKey(i, name, keysize);
 				
 				StringMap shared_map;
-				if( !this.shmap_managers.GetValue(name, shared_map) ) {
+				if( !this.shmap_ids.GetValue(name, shared_map) ) {
 					continue;
 				}
 				
@@ -199,6 +202,7 @@ enum struct ModuleManagerPlugin {
 			delete snap;
 		}
 		delete this.shmap_managers;
+		delete this.shmap_ids;
 	}
 }
 
