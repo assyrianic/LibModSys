@@ -1299,3 +1299,41 @@ stock bool IsValidPlugin(Handle plugin) {
 	delete iter;
 	return res;
 }
+
+stock int int_hash(int i, int seed) {
+	int h = seed;
+	h =          (i & 0xFF) + (h << 6) + (h << 16) - h;
+	h = ((i >>> 8)  & 0xFF) + (h << 6) + (h << 16) - h;
+	h = ((i >>> 16) & 0xFF) + (h << 6) + (h << 16) - h;
+	h = ((i >>> 24) & 0xFF) + (h << 6) + (h << 16) - h;
+	//for( int n=0; n < 32; n += 8 ) {
+	//	h = ((i >> n) & 0xFF) + (h << 6) + (h << 16) - h;
+	//}
+	return h;
+}
+
+
+/// x < y
+stock bool UInt32LT(int x, int y) {
+	int sign_x = x & 0x80000000;
+	int sign_y = y & 0x80000000;
+	/// lower negative = higher positive.
+	return( sign_x==sign_y )? x < y : ~sign_x && sign_y;
+}
+
+/// x > y
+stock bool UInt32GT(int x, int y) {
+	return UInt32LT(y, x);
+}
+
+/// x >= y
+stock bool UInt32GE(int x, int y) {
+	int sign_x = x & 0x80000000;
+	int sign_y = y & 0x80000000;
+	return( sign_x==sign_y )? x >= y : sign_x && ~sign_y;
+}
+
+/// x <= y
+stock bool UInt32LE(int x, int y) {
+	return UInt32GE(y, x);
+}

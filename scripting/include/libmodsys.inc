@@ -342,6 +342,9 @@ stock int LibModSys_GetModulesByFlags(ManagerID id, PluginModule[] modules, int 
 /// Shared Map.
 /// For plugins and their systems be able to share data.
 /// Besides having additional data to set, SharedMaps can LOCK specific props.
+
+/// NOTE:: ALL CREATED PROPS ARE FROZEN & LOCKED BY DEFAULT. OWNER/PROP CREATOR MUST UNFREEZE/UNLOCK THEM.
+
 /// thus preventing non-owning plugins from removing and/or changing the data.
 /// for SPType, here's the list:
 ///     AnyType, CharType, IntType, FloatType, HandleType,

@@ -5,7 +5,7 @@
 #pragma semicolon         1
 #pragma newdecls          required
 
-#define PLUGIN_VERSION    "1.1.0a"
+#define PLUGIN_VERSION    "1.1.1a"
 
 
 public Plugin myinfo = {
@@ -93,22 +93,26 @@ enum struct ModuleManagerCvars {
 }
 
 enum struct ModuleManagerPlugin {
-	ModuleManagerCvars cvars;         /// 
+	ModuleManagerCvars cvars;          /// 
 	
-	GlobalFwdsManager  glfwd_manager; /// 
+	GlobalFwdsManager  glfwd_manager;  /// 
 	
-	ManagerID          manager_ids;   /// manager IDs to track specific plugin managers.
-	StringMap          pf_managers;   /// map[ManagerID]PrivateFwdsManager
-	StringMap          pl_managers;   /// map[ManagerID]ModuleManager
-	StringMap          shmap_managers;/// map[ManagerID]SharedMap
+	ManagerID          manager_ids;    /// manager IDs to track specific plugin managers.
+	
+	StringMap          pf_managers;    /// map[ManagerID]PrivateFwdsManager
+	StringMap          pl_managers;    /// map[ManagerID]ModuleManager
+	
+	StringMap          shmap_managers; /// map[string]ManagerID
+	StringMap          shmap_ids;      /// map[ManagerID]SharedMap
 	
 	
 	void Init() {
 		this.glfwd_manager.Init("configs/plugin_manager/global_fwds.cfg");
-		this.pf_managers   = new StringMap();
-		this.pl_managers   = new StringMap();
-		this.shmap_managers= new StringMap();
-		this.manager_ids   = IntToAny(1);
+		this.pf_managers    = new StringMap();
+		this.pl_managers    = new StringMap();
+		this.shmap_managers = new StringMap();
+		this.shmap_ids      = new StringMap();
+		this.manager_ids    = IntToAny(1);
 	}
 	
 	ManagerID GenerateManagerID() {
@@ -222,35 +226,35 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("LibModSys_UnregisterModule",       Native_LibModSys_UnregisterModule);
 	
 	/// SharedMap natives.
-	CreateNative("SharedMap.SharedMap",                     Native_SharedMap_SharedMap);
-	CreateNative("SharedMap.GetInt",                        Native_SharedMap_GetInt);
-	CreateNative("SharedMap.GetFloat",                      Native_SharedMap_GetFloat);
-	CreateNative("SharedMap.GetAny",                        Native_SharedMap_GetAny);
-	CreateNative("SharedMap.GetStrLen",                     Native_SharedMap_GetStrLen);
-	CreateNative("SharedMap.GetStr",                        Native_SharedMap_GetStr);
-	CreateNative("SharedMap.GetArrLen",                     Native_SharedMap_GetArrLen);
-	CreateNative("SharedMap.GetArr",                        Native_SharedMap_GetArr);
-	CreateNative("SharedMap.GetOwner",                      Native_SharedMap_GetOwner);
+	CreateNative("SharedMap.SharedMap",              Native_SharedMap_SharedMap);
+	CreateNative("SharedMap.GetInt",                 Native_SharedMap_GetInt);
+	CreateNative("SharedMap.GetFloat",               Native_SharedMap_GetFloat);
+	CreateNative("SharedMap.GetAny",                 Native_SharedMap_GetAny);
+	CreateNative("SharedMap.GetStrLen",              Native_SharedMap_GetStrLen);
+	CreateNative("SharedMap.GetStr",                 Native_SharedMap_GetStr);
+	CreateNative("SharedMap.GetArrLen",              Native_SharedMap_GetArrLen);
+	CreateNative("SharedMap.GetArr",                 Native_SharedMap_GetArr);
+	CreateNative("SharedMap.GetOwner",               Native_SharedMap_GetOwner);
 	
-	CreateNative("SharedMap.SetInt",                        Native_SharedMap_SetInt);
-	CreateNative("SharedMap.SetFloat",                      Native_SharedMap_SetFloat);
-	CreateNative("SharedMap.SetAny",                        Native_SharedMap_SetAny);
-	CreateNative("SharedMap.SetStr",                        Native_SharedMap_SetStr);
-	CreateNative("SharedMap.SetArr",                        Native_SharedMap_SetArr);
+	CreateNative("SharedMap.SetInt",                 Native_SharedMap_SetInt);
+	CreateNative("SharedMap.SetFloat",               Native_SharedMap_SetFloat);
+	CreateNative("SharedMap.SetAny",                 Native_SharedMap_SetAny);
+	CreateNative("SharedMap.SetStr",                 Native_SharedMap_SetStr);
+	CreateNative("SharedMap.SetArr",                 Native_SharedMap_SetArr);
 	
-	CreateNative("SharedMap.Has",                           Native_SharedMap_Has);
-	CreateNative("SharedMap.TypeOf",                        Native_SharedMap_TypeOf);
-	CreateNative("SharedMap.Delete",                        Native_SharedMap_Delete);
+	CreateNative("SharedMap.Has",                    Native_SharedMap_Has);
+	CreateNative("SharedMap.TypeOf",                 Native_SharedMap_TypeOf);
+	CreateNative("SharedMap.Delete",                 Native_SharedMap_Delete);
 	
-	CreateNative("SharedMap.IsLocked",                      Native_SharedMap_IsLocked);
-	CreateNative("SharedMap.IsFrozen",                      Native_SharedMap_IsFrozen);
+	CreateNative("SharedMap.IsLocked",               Native_SharedMap_IsLocked);
+	CreateNative("SharedMap.IsFrozen",               Native_SharedMap_IsFrozen);
 	
-	CreateNative("SharedMap.Lock",                          Native_SharedMap_Lock);
-	CreateNative("SharedMap.Unlock",                        Native_SharedMap_Unlock);
-	CreateNative("SharedMap.Freeze",                        Native_SharedMap_Freeze);
-	CreateNative("SharedMap.Unfreeze",                      Native_SharedMap_Unfreeze);
+	CreateNative("SharedMap.Lock",                   Native_SharedMap_Lock);
+	CreateNative("SharedMap.Unlock",                 Native_SharedMap_Unlock);
+	CreateNative("SharedMap.Freeze",                 Native_SharedMap_Freeze);
+	CreateNative("SharedMap.Unfreeze",               Native_SharedMap_Unfreeze);
 	
-	CreateNative("SharedMap.Len.get",                       Native_SharedMap_Len_get);
+	CreateNative("SharedMap.Len.get",                Native_SharedMap_Len_get);
 	
 	/// SharedMap oriented natives.
 	CreateNative("LibModSys_DestroySharedMap",       Native_LibModSys_DestroySharedMap);
@@ -520,21 +524,31 @@ public any Native_SharedMap_SharedMap(Handle plugin, int numParams) {
 	char[] channel = new char[len];
 	GetNativeString(1, channel, len);
 	
-	StringMap shared_map;
-	if( g_mmp.shmap_managers.GetValue(channel, shared_map) && shared_map != null ) {
-		return shared_map;
+	ManagerID shmap_id;
+	if( g_mmp.shmap_managers.GetValue(channel, shmap_id) && shmap_id != InvalidManagerID ) {
+		return shmap_id;
 	}
 	
-	shared_map = new StringMap();
+	shmap_id = g_mmp.GenerateManagerID();
+	StringMap shared_map = new StringMap();
 	shared_map.SetValue("__dict_owner__", plugin);
-	g_mmp.shmap_managers.SetValue(channel, shared_map);
-	return shared_map;
+	
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	g_mmp.shmap_ids.SetValue(id_key, shared_map);
+	g_mmp.shmap_managers.SetValue(channel, shmap_id);
+	return shmap_id;
 }
 
 /// bool GetInt(const char[] prop, int &i);
 public any Native_SharedMap_GetInt(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -553,8 +567,14 @@ public any Native_SharedMap_GetInt(Handle plugin, int numParams) {
 
 /// bool GetFloat(const char[] prop, float &f);
 public any Native_SharedMap_GetFloat(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -573,8 +593,14 @@ public any Native_SharedMap_GetFloat(Handle plugin, int numParams) {
 
 /// bool GetAny(const char[] prop, any &a, SPType sp_type=AnyType);
 public any Native_SharedMap_GetAny(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -594,8 +620,14 @@ public any Native_SharedMap_GetAny(Handle plugin, int numParams) {
 
 /// int GetStrLen(const char[] prop);
 public any Native_SharedMap_GetStrLen(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -613,8 +645,14 @@ public any Native_SharedMap_GetStrLen(Handle plugin, int numParams) {
 
 /// int GetStr(const char[] prop, char[] buf, int len);
 public any Native_SharedMap_GetStr(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -639,8 +677,14 @@ public any Native_SharedMap_GetStr(Handle plugin, int numParams) {
 
 /// int GetArrLen(const char[] prop);
 public any Native_SharedMap_GetArrLen(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -658,8 +702,14 @@ public any Native_SharedMap_GetArrLen(Handle plugin, int numParams) {
 
 /// int GetArr(const char[] prop, any[] buf, int len, SPType sp_type=AnyType);
 public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -685,8 +735,14 @@ public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
 
 /// Handle GetOwner(const char[] prop);
 public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return 0;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return 0;
 	}
 	
@@ -708,8 +764,14 @@ public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
 
 /// bool SetInt(const char[] prop, int value);
 public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -724,6 +786,7 @@ public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.ContainsKey(prop) ) {
 		entry.InitAny(plugin, value, IntType);
+		entry.access |= (FlagFrozen|FlagLocked);
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != IntType ) {
 		return false;
@@ -737,8 +800,14 @@ public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 
 /// bool SetFloat(const char[] prop, float value);
 public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -753,6 +822,7 @@ public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.ContainsKey(prop) ) {
 		entry.InitFloat(plugin, value);
+		entry.access |= (FlagFrozen|FlagLocked);
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FloatType ) {
 		return false;
@@ -766,8 +836,14 @@ public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 
 /// bool SetAny(const char[] prop, any value, SPType sp_type=AnyType);
 public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -783,6 +859,7 @@ public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.ContainsKey(prop) ) {
 		entry.InitAny(plugin, value, sptype);
+		entry.access |= (FlagFrozen|FlagLocked);
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != sptype ) {
 		return false;
@@ -796,8 +873,14 @@ public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 
 /// bool SetStr(const char[] prop, const char[] value);
 public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -815,6 +898,7 @@ public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.ContainsKey(prop) ) {
 		entry.InitStr(plugin, val_str, val_len);
+		entry.access |= (FlagFrozen|FlagLocked);
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != (CharType | ArrayType) ) {
 		return false;
@@ -831,8 +915,14 @@ public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 
 /// bool SetArr(const char[] prop, const any[] value, int len, SPType sp_type=AnyType);
 public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -850,6 +940,7 @@ public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.ContainsKey(prop) ) {
 		entry.InitAnyArray(plugin, val_arr, val_len, sptype);
+		entry.access |= (FlagFrozen|FlagLocked);
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != (sptype | ArrayType) ) {
 		return false;
@@ -866,8 +957,14 @@ public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 
 /// bool Has(const char[] prop);
 public any Native_SharedMap_Has(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -880,8 +977,14 @@ public any Native_SharedMap_Has(Handle plugin, int numParams) {
 
 /// SPType TypeOf(const char[] prop);
 public any Native_SharedMap_TypeOf(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return InvalidType;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return InvalidType;
 	}
 	
@@ -899,8 +1002,14 @@ public any Native_SharedMap_TypeOf(Handle plugin, int numParams) {
 
 /// bool Delete(const char[] prop);
 public any Native_SharedMap_Delete(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -913,17 +1022,23 @@ public any Native_SharedMap_Delete(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) ) {
 		return false;
-	} else if( !( entry.owner==plugin || shared_map_owner==plugin ) ) {
+	} else if( !( entry.PluginCanDelete(plugin) || shared_map_owner==plugin ) ) {
 		return false;
 	}
 	entry.Destroy();
 	return shared_map.Remove(prop);
 }
 
-/// bool IsLocked(const char[] prop);
+/// int IsLocked(const char[] prop);
 public any Native_SharedMap_IsLocked(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -939,10 +1054,16 @@ public any Native_SharedMap_IsLocked(Handle plugin, int numParams) {
 	return (entry.access & FlagLocked) > 0;
 }
 
-/// bool IsFrozen(const char[] prop);
+/// int IsFrozen(const char[] prop);
 public any Native_SharedMap_IsFrozen(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	
@@ -960,8 +1081,14 @@ public any Native_SharedMap_IsFrozen(Handle plugin, int numParams) {
 
 /// bool Lock(const char[] prop);
 public any Native_SharedMap_Lock(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -983,8 +1110,14 @@ public any Native_SharedMap_Lock(Handle plugin, int numParams) {
 
 /// bool Unlock(const char[] prop);
 public any Native_SharedMap_Unlock(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -1006,8 +1139,14 @@ public any Native_SharedMap_Unlock(Handle plugin, int numParams) {
 
 /// bool Freeze(const char[] prop);
 public any Native_SharedMap_Freeze(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -1029,8 +1168,14 @@ public any Native_SharedMap_Freeze(Handle plugin, int numParams) {
 
 /// bool Unfreeze(const char[] prop);
 public any Native_SharedMap_Unfreeze(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -1052,8 +1197,14 @@ public any Native_SharedMap_Unfreeze(Handle plugin, int numParams) {
 
 /// property int Len
 public any Native_SharedMap_Len_get(Handle plugin, int numParams) {
-	StringMap shared_map = GetNativeCell(1);
-	if( shared_map==null ) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		return -1;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return -1;
 	}
 	return shared_map.Size;
@@ -1066,18 +1217,30 @@ public any Native_LibModSys_DestroySharedMap(Handle plugin, int numParams) {
 	char[] channel = new char[len];
 	GetNativeString(1, channel, len);
 	
-	StringMap shared_map;
-	if( !g_mmp.shmap_managers.GetValue(channel, shared_map) ) {
+	ManagerID shmap_id;
+	if( !g_mmp.shmap_managers.GetValue(channel, shmap_id) || shmap_id==InvalidManagerID ) {
 		return false;
 	}
 	
-	Handle shared_map_owner; shared_map.GetValue("__dict_owner__", shared_map_owner);
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		return false;
+	}
+	
+	Handle shared_map_owner;
+	shared_map.GetValue("__dict_owner__", shared_map_owner);
+	
 	/// only the creator/owner plugin can destroy.
 	if( plugin != shared_map_owner ) {
 		return false;
 	}
 	
 	StringMapSnapshot shared_map_snap = shared_map.Snapshot();
+	if( shared_map_snap==null ) {
+		return false;
+	}
+	
 	int shared_map_len = shared_map_snap.Length;
 	for( int i; i < shared_map_len; i++ ) {
 		int shared_map_keysize = shared_map_snap.KeyBufferSize(i) + 1;
@@ -1090,8 +1253,11 @@ public any Native_LibModSys_DestroySharedMap(Handle plugin, int numParams) {
 		}
 		sme.Destroy();
 	}
+	
 	delete shared_map_snap;
 	delete shared_map;
+	
+	g_mmp.shmap_ids.Remove(id_key);
 	g_mmp.shmap_managers.Remove(channel);
 	return true;
 }
@@ -1103,8 +1269,14 @@ public any Native_LibModSys_ClearSharedMap(Handle plugin, int numParams) {
 	char[] channel = new char[len];
 	GetNativeString(1, channel, len);
 	
+	ManagerID shmap_id;
+	if( !g_mmp.shmap_managers.GetValue(channel, shmap_id) || shmap_id==InvalidManagerID ) {
+		return false;
+	}
+	
 	StringMap shared_map;
-	if( !g_mmp.shmap_managers.GetValue(channel, shared_map) ) {
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
 		return false;
 	}
 	
@@ -1115,6 +1287,10 @@ public any Native_LibModSys_ClearSharedMap(Handle plugin, int numParams) {
 	}
 	
 	StringMapSnapshot shared_map_snap = shared_map.Snapshot();
+	if( shared_map_snap==null ) {
+		return false;
+	}
+	
 	int shared_map_len = shared_map_snap.Length;
 	for( int i; i < shared_map_len; i++ ) {
 		int shared_map_keysize = shared_map_snap.KeyBufferSize(i) + 1;
@@ -1140,6 +1316,7 @@ public any Native_LibModSys_ChannelExists(Handle plugin, int numParams) {
 	GetNativeString(1, channel, len);
 	return g_mmp.shmap_managers.ContainsKey(channel);
 }
+
 
 /*
 /// bool LibModSys_ExecForward(ManagerID id, const char[] name, any &result=0, ...);

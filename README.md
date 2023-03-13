@@ -3,7 +3,7 @@ A runtime/plugin-based, inter-plugin communication library for SourceMod.
 
 
 ## Version
-vers 1.1.0a
+vers 1.2.0a
 
 
 ## Purpose
@@ -27,6 +27,7 @@ Each type of manager has different strengths to them.
 -- Plugins that make properties, own those properties.
 -- Plugins can optionally **[Un]Lock** (prevents other plugin's except `SharedMap` creator/owner plugin from deleting the property) and/or **[Un]Freeze** (prevents other plugin's except `SharedMap` creator/owner plugin from changing the property data).
 -- `SharedMap`s are more type safe than normal `StringMap`s and allow you to get the length of an array or string of a property!
+-- `SharedMap`s are safe to share and impossible to destroy/clear from other plugins that didn't initialize the `SharedMap`!
 
 
 ## How To Use
@@ -141,19 +142,21 @@ Remember this information though:
 * You can use `Lock`, `Unlock`, `Freeze`, and `Unfreeze` to control data security of each property.
 * That only the owner plugin of a property can [un]lock and/or [un]freeze said property.
 * The plugin that created the `SharedMap` can override any locked and/or frozen properties.
+* Newly created properties are locked and frozen by default, only the owner of the property or channel can unlock and unfreeze them.
 
 ```cs
 public void OnLibraryAdded(const char[] name) {
 	if( StrEqual(name, "LibModSys") ) {
-		/// create new channel for SharedMap under "my_plugin".
-		SharedMap dict = SharedMap("my_plugin");
+		SharedMap shmap = SharedMap("my_plugin");
 		
 		/// create's a property,
 		/// making the creator/owner plugin the owner of this property.
-		dict.SetInt("Example property", 100);
+		shmap.SetInt("Example property", 100);
 		
-		/// locking prevents other plugins from deleting this property [by accident].
-		dict.Lock("Example property");
+		/// New properties are both Locked and Frozen by default.
+		/// Unfreeze and/or Unlock properties to allow those
+		/// properties to be modified and/or deleted respectively.
+		shmap.Unfreeze("Example property");
 	}
 }
 ```
@@ -175,11 +178,8 @@ public bool AwaitChannel() {
 	if( !LibModSys_ChannelExists("my_plugin") ) {
 		return false;
 	}
-	/// If code runs this part, that means core finished setting up "my_plugin" channel.
-	/// constructor call here does NOT create a new SharedMap but instead
-	/// gives you the one created when core initialized the channel and [when core] created the SharedMap.
-	SharedMap shmap = SharedMap("my_plugin");
-	/// setup data.
+	SharedMap g_shmap = SharedMap("my_plugin");
+	...
 	return true;
 }
 ```
