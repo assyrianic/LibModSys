@@ -65,6 +65,10 @@ typeset CustomKVParse {
 	function void (const KeyValState kvstate, const char[] key, const char[] value, bool key_quotes, bool value_quotes);
 }
 
+typeset KVIterFunc {
+	function void (ConfigMap section, const char[] key, int keylen, KeyValType kvtype);
+}
+
 enum struct KeyValState {
 	SMCParser parser;
 	
@@ -671,6 +675,34 @@ methodmap ConfigMap < StringMap {
 		}
 		char key_str[12]; IntToString(key, key_str, sizeof(key_str));
 		return this.GetBool(key_str, b, simple);
+	}
+	
+	/// function void (ConfigMap section, const char[] key, int keylen, KeyValType kvtype);
+	public bool ForEachKey(KVIterFunc iter_func) {
+		if( this==null || iter_func==INVALID_FUNCTION ) {
+			return false;
+		}
+		
+		StringMapSnapshot snap = this.Snapshot();
+		if( snap==null ) {
+			return false;
+		}
+		
+		int entries = snap.Length;
+		for( int i; i < entries; i++ ) {
+			int strsize = snap.KeyBufferSize(i) + 1;
+			char[] key_buffer = new char[strsize];
+			snap.GetKey(i, key_buffer, strsize);
+			PackVal val; this.GetArray(key_buffer, val, sizeof(val));
+			
+			Call_StartFunc(null, iter_func);
+			Call_PushString(key_buffer);
+			Call_PushCell(strsize);
+			Call_PushCell(val.tag);
+			Call_Finish();
+		}
+		delete snap;
+		return true;
 	}
 };
 
