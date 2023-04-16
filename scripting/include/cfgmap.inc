@@ -66,7 +66,7 @@ typeset CustomKVParse {
 }
 
 typeset KVIterFunc {
-	function void (ConfigMap section, const char[] key, int keylen, KeyValType kvtype);
+	function void (const char[] key, int keylen, KeyValType kvtype);
 }
 
 enum struct KeyValState {
@@ -97,33 +97,45 @@ enum struct KeyValState {
 	int value_len_limit; /// helps keep memory usage low by having a value size limit.
 	
 	Function parse_fn;
+	
+	bool debug_mode;
 }
 
 static KeyValState g_kvstate;
 
 
 methodmap ConfigMap < StringMap {
-	public ConfigMap(const char[] filename, CustomKVParse parse_func=INVALID_FUNCTION) {
+	public ConfigMap(const char[] filename, CustomKVParse parse_func=INVALID_FUNCTION, bool debug_mode=false) {
 		char path[PLATFORM_MAX_PATH];
 		BuildPath(Path_SM, path, sizeof(path), filename);
 		
 		strcopy(g_kvstate.filename, sizeof(g_kvstate.filename), filename);
-		g_kvstate.filepath = path;
-		g_kvstate.cfgstack = new ArrayStack();
-		g_kvstate.enum_stack = new ArrayStack();
-		g_kvstate.secstack = new ArrayStack(PLATFORM_MAX_PATH);
-		g_kvstate.top = new StringMap();
+		g_kvstate.filepath      = path;
+		g_kvstate.cfgstack      = new ArrayStack();
+		g_kvstate.enum_stack    = new ArrayStack();
+		g_kvstate.secstack      = new ArrayStack(PLATFORM_MAX_PATH);
+		g_kvstate.top           = new StringMap();
+		g_kvstate.debug_mode    = debug_mode;
+		if( g_kvstate.debug_mode ) {
+			PrintToServer("ConfigMap Debug :: Allocated Main CFG Map");
+		}
 		g_kvstate.enumer_global = g_kvstate.iota_global = 0;
-		g_kvstate.enumer_local = g_kvstate.iota_local = 0;
-		g_kvstate.parse_fn = parse_func;
+		g_kvstate.enumer_local  = g_kvstate.iota_local = 0;
+		g_kvstate.parse_fn      = parse_func;
 		
 		g_kvstate.parser = new SMCParser();
 		g_kvstate.parser.OnEnterSection = ConfigMap_OnNewSection;
-		g_kvstate.parser.OnKeyValue = ConfigMap_OnKeyValue;
+		g_kvstate.parser.OnKeyValue     = ConfigMap_OnKeyValue;
 		g_kvstate.parser.OnLeaveSection = ConfigMap_OnEndSection;
-		g_kvstate.parser.OnRawLine = ConfigMap_OnCurrentLine;
+		g_kvstate.parser.OnRawLine      = ConfigMap_OnCurrentLine;
 		
 		SMCError err = g_kvstate.parser.ParseFile(path);
+		StringMap cfg = g_kvstate.top;
+		delete g_kvstate.parser;
+		delete g_kvstate.cfgstack;
+		delete g_kvstate.secstack;
+		delete g_kvstate.enum_stack;
+		
 		//PrintCfg(view_as< ConfigMap >(g_kvstate.top));
 		if( err != SMCError_Okay ) {
 			char buffer[64];
@@ -134,15 +146,11 @@ methodmap ConfigMap < StringMap {
 			}
 			
 			if( g_kvstate.top != null ) {
-				DeleteCfg(view_as< ConfigMap >(g_kvstate.top));
+				DeleteCfg(cfg);
+				g_kvstate.top = null;
 			}
 		}
-		delete g_kvstate.parser;
-		delete g_kvstate.cfgstack;
-		delete g_kvstate.secstack;
-		delete g_kvstate.enum_stack;
 		
-		StringMap cfg = g_kvstate.top;
 		if( g_kvstate.top != null ) {
 			cfg.SetString("__ConfigMap::filename__", filename);
 			cfg.SetString("__ConfigMap::filepath__", path);
@@ -677,7 +685,7 @@ methodmap ConfigMap < StringMap {
 		return this.GetBool(key_str, b, simple);
 	}
 	
-	/// function void (ConfigMap section, const char[] key, int keylen, KeyValType kvtype);
+	/// function void (const char[] key, int keylen, KeyValType kvtype);
 	public bool ForEachKey(KVIterFunc iter_func) {
 		if( this==null || iter_func==INVALID_FUNCTION ) {
 			return false;
@@ -694,7 +702,6 @@ methodmap ConfigMap < StringMap {
 			char[] key_buffer = new char[strsize];
 			snap.GetKey(i, key_buffer, strsize);
 			PackVal val; this.GetArray(key_buffer, val, sizeof(val));
-			
 			Call_StartFunction(null, iter_func);
 			Call_PushString(key_buffer);
 			Call_PushCell(strsize);
@@ -717,6 +724,9 @@ public SMCResult ConfigMap_OnNewSection(SMCParser smc, const char[] name, bool o
 	}
 	
 	g_kvstate.top = new StringMap();
+	if( g_kvstate.debug_mode ) {
+		PrintToServer("ConfigMap Debug :: Allocated Map for Section '%s'", name);
+	}
 	strcopy(g_kvstate.curr_section, sizeof(g_kvstate.curr_section), name);
 	g_kvstate.enum_stack.Push(g_kvstate.enumer_local);
 	g_kvstate.enum_stack.Push(g_kvstate.iota_local);
@@ -774,16 +784,22 @@ public SMCResult ConfigMap_OnKeyValue(SMCParser smc, const char[] key, const cha
 		}
 		
 		PackVal val;
-		val.data = new DataPack();
+		val.Init();
 		val.data.WriteCell(outter_file);
 		val.size = sizeof(outter_file);
 		val.tag = KeyValType_Section;
+		if( g_kvstate.debug_mode ) {
+			PrintToServer("ConfigMap Debug :: Allocated DataPack for key: '%s'", key);
+		}
 		g_kvstate.top.SetArray(value, val, sizeof(val));
 		return SMCParse_Continue;
 	}
 	
 	PackVal val;
-	val.data = new DataPack();
+	val.Init();
+	if( g_kvstate.debug_mode ) {
+		PrintToServer("ConfigMap Debug :: Allocated DataPack for key: '%s'", key);
+	}
 	if( StrEqual(value, "<IOTA>") ) {
 		char iota_val_str[15];
 		int iota_val = g_kvstate.iota_global++;
@@ -828,10 +844,13 @@ public SMCResult ConfigMap_OnEndSection(SMCParser smc) {
 		StringMap higher = g_kvstate.cfgstack.Pop();
 		
 		PackVal val;
-		val.data = new DataPack();
+		val.Init();
 		val.data.WriteCell(g_kvstate.top);
 		val.size = sizeof(g_kvstate.top);
 		val.tag = KeyValType_Section;
+		if( g_kvstate.debug_mode ) {
+			PrintToServer("ConfigMap Debug :: Allocated DataPack to store Section: '%s'", g_kvstate.curr_section);
+		}
 		
 		if( StrEqual(g_kvstate.curr_section, "<ENUM>") ) {
 			int enum_val = g_kvstate.enumer_global++;
@@ -887,7 +906,7 @@ stock bool ParseTargetPath(const char[] key, char[] buffer, int buffer_len) {
 	return n > 0;
 }
 
-stock void DeleteCfg(ConfigMap& cfg, bool clear_only=false) {
+stock void DeleteCfg(ConfigMap& cfg, bool clear_only=false, bool debug_mode=false) {
 	if( cfg==null ) {
 		return;
 	}
@@ -902,17 +921,22 @@ stock void DeleteCfg(ConfigMap& cfg, bool clear_only=false) {
 		int strsize = snap.KeyBufferSize(i) + 1;
 		char[] key_buffer = new char[strsize];
 		snap.GetKey(i, key_buffer, strsize);
-		PackVal val;
-		cfg.GetArray(key_buffer, val, sizeof(val));
+		PackVal val; cfg.GetArray(key_buffer, val, sizeof(val));
 		switch( val.tag ) {
 			case KeyValType_Value: {
 				delete val.data;
+				if( debug_mode ) {
+					PrintToServer("DeleteCfg :: Deleted Value '%s'", key_buffer);
+				}
 			}
 			case KeyValType_Section: {
 				val.data.Reset();
 				ConfigMap section = val.data.ReadCell();
-				DeleteCfg(section);
+				DeleteCfg(section, false, debug_mode);
 				delete val.data;
+				if( debug_mode ) {
+					PrintToServer("DeleteCfg :: Deleted Section '%s'", key_buffer);
+				}
 			}
 		}
 	}
