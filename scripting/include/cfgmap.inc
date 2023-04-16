@@ -695,7 +695,7 @@ methodmap ConfigMap < StringMap {
 			snap.GetKey(i, key_buffer, strsize);
 			PackVal val; this.GetArray(key_buffer, val, sizeof(val));
 			
-			Call_StartFunc(null, iter_func);
+			Call_StartFunction(null, iter_func);
 			Call_PushString(key_buffer);
 			Call_PushCell(strsize);
 			Call_PushCell(val.tag);
