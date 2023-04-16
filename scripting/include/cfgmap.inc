@@ -143,10 +143,10 @@ methodmap ConfigMap < StringMap {
 		delete g_kvstate.enum_stack;
 		
 		StringMap cfg = g_kvstate.top;
-		cfg.SetString("__ConfigMap::filename__", filename);
-		cfg.SetString("__ConfigMap::filepath__", path);
-		cfg.SetValue("__ConfigMap::last_change_time__", GetFileTime(path, FileTime_LastChange));
 		if( g_kvstate.top != null ) {
+			cfg.SetString("__ConfigMap::filename__", filename);
+			cfg.SetString("__ConfigMap::filepath__", path);
+			cfg.SetValue("__ConfigMap::last_change_time__", GetFileTime(path, FileTime_LastChange));
 			g_kvstate.top = null;
 		}
 		return view_as< ConfigMap >(cfg);
