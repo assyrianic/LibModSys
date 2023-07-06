@@ -38,11 +38,12 @@ public void OnLibraryAdded(const char[] name) {
 	}
 }
 
+static SharedMap g_shmap;
 public bool AwaitChannel() {
 	if( !LibModSys_ChannelExists("global_fwd_tester") ) {
 		return false;
 	}
-	SharedMap shmap = SharedMap("global_fwd_tester");
+	g_shmap = SharedMap("global_fwd_tester");
 	return true;
 }
 

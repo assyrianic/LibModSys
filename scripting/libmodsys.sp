@@ -18,17 +18,17 @@ public Plugin myinfo = {
 
 
 enum {
-	FlagLocked = 1 << 0,
-	FlagFrozen = 1 << 1,
+	FlagLocked  = 1 << 0,
+	FlagFrozen  = 1 << 1,
 };
 enum struct SharedMapEntry {
 	Handle   owner; /// owner that can [un]lock/[un]freeze this entry.
 	any      data;  /// if any Array type, this is a DataPack.
 	Function fn;
+	Handle   fn_owner;
 	int      len;
 	SPType   tag;   /// see anonymous enum in 'plugin_utils.inc'
 	int      access;
-	
 	
 	bool PluginCanMutate(Handle pl) {
 		return this.owner==pl || (this.access & FlagFrozen)==0;
@@ -51,11 +51,12 @@ enum struct SharedMapEntry {
 		this.len   = 1;
 	}
 	
-	void InitFunc(Handle plugin, Function fn) {
-		this.tag   = FuncType;
-		this.fn    = fn;
-		this.owner = plugin;
-		this.len   = 1;
+	void InitFunc(Handle plugin, Handle fn_owner, Function fn, int args) {
+		this.tag      = FuncType;
+		this.fn       = fn;
+		this.fn_owner = fn_owner;
+		this.owner    = plugin;
+		this.len      = args;
 	}
 	
 	void InitAnyArray(Handle plugin, const any[] data, int len, SPType sptype=AnyType) {
@@ -166,9 +167,6 @@ enum struct ModuleManagerPlugin {
 		}
 		delete this.pl_managers;
 		
-		StringMap          shmap_managers; /// map[string]ManagerID
-		StringMap          shmap_ids;      /// map[ManagerID]SharedMap
-		
 		/// destroy SharedMaps.
 		snap = this.shmap_ids.Snapshot();
 		if( snap != null ) {
@@ -246,6 +244,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("SharedMap.SetStr",                 Native_SharedMap_SetStr);
 	CreateNative("SharedMap.SetArr",                 Native_SharedMap_SetArr);
 	
+	CreateNative("SharedMap.SetFunc",                Native_SharedMap_SetFunc);
+	CreateNative("SharedMap.GetFunc",                Native_SharedMap_GetFunc);
+	CreateNative("SharedMap.ExecFunc",               Native_SharedMap_ExecFunc);
+	
 	CreateNative("SharedMap.Has",                    Native_SharedMap_Has);
 	CreateNative("SharedMap.TypeOf",                 Native_SharedMap_TypeOf);
 	CreateNative("SharedMap.Delete",                 Native_SharedMap_Delete);
@@ -279,7 +281,7 @@ public any Native_LibModSys_GetGlobalFwdManager(Handle plugin, int numParams) {
 public any Native_LibModSys_MakePrivateFwdManager(Handle plugin, int numParams) {
 	ManagerID pfm_id = g_mmp.GenerateManagerID();
 	if( pfm_id==InvalidManagerID ) {
-		LogError("LibModSys_MakePrivateFwdsManager :: Error :: **** out of IDs! ****");
+		LogMessage("LibModSys_MakePrivateFwdsManager :: Error :: **** out of IDs! ****");
 		return InvalidManagerID;
 	}
 	
@@ -422,7 +424,7 @@ public any Native_LibModSys_PrivateFwdUnhookAll(Handle plugin, int numParams) {
 public any Native_LibModSys_MakeModuleManager(Handle plugin, int numParams) {
 	ManagerID mm_id = g_mmp.GenerateManagerID();
 	if( mm_id==InvalidManagerID ) {
-		LogError("LibModSys_MakeModuleManager :: Error :: **** out of IDs! ****");
+		LogMessage("LibModSys_MakeModuleManager :: Error :: **** out of IDs! ****");
 		return InvalidManagerID;
 	}
 	
@@ -547,12 +549,14 @@ public any Native_SharedMap_SharedMap(Handle plugin, int numParams) {
 public any Native_SharedMap_GetInt(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetInt :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetInt :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -573,12 +577,14 @@ public any Native_SharedMap_GetInt(Handle plugin, int numParams) {
 public any Native_SharedMap_GetFloat(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetFloat :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetFloat :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -599,12 +605,14 @@ public any Native_SharedMap_GetFloat(Handle plugin, int numParams) {
 public any Native_SharedMap_GetAny(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetAny :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetAny :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -626,12 +634,14 @@ public any Native_SharedMap_GetAny(Handle plugin, int numParams) {
 public any Native_SharedMap_GetStrLen(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetStrLen :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetStrLen :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -651,12 +661,14 @@ public any Native_SharedMap_GetStrLen(Handle plugin, int numParams) {
 public any Native_SharedMap_GetStr(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetStr :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetStr :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -683,12 +695,14 @@ public any Native_SharedMap_GetStr(Handle plugin, int numParams) {
 public any Native_SharedMap_GetArrLen(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetArrLen :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetArrLen :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -708,12 +722,14 @@ public any Native_SharedMap_GetArrLen(Handle plugin, int numParams) {
 public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetArr :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetArr :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -741,12 +757,14 @@ public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
 public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetOwner :: Error :: **** Bad SharedMap ID! ****");
 		return 0;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetOwner :: Error :: **** Failed to retrieve SharedMap ****");
 		return 0;
 	}
 	
@@ -770,12 +788,14 @@ public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
 public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetInt :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetInt :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -806,12 +826,14 @@ public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetFloat :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetFloat :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -842,12 +864,14 @@ public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetAny :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetAny :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -879,12 +903,14 @@ public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetStr :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetStr :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -921,12 +947,14 @@ public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetArr :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetArr :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -959,16 +987,268 @@ public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 	return shared_map.SetArray(prop, entry, sizeof(entry));
 }
 
-/// bool Has(const char[] prop);
-public any Native_SharedMap_Has(Handle plugin, int numParams) {
+/// bool SetFunc(const char[] prop, Function f, int num_args);
+public any Native_SharedMap_SetFunc(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.SetFunc :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.SetFunc :: Error :: **** Failed to retrieve SharedMap ****");
+		return false;
+	}
+	
+	int len; GetNativeStringLength(2, len);
+	len++;
+	char[] prop = new char[len];
+	GetNativeString(2, prop, len);
+	
+	Function fn = GetNativeFunction(3);
+	int num_args = GetNativeCell(4);
+	Handle shared_map_owner; shared_map.GetValue("__dict_owner__", shared_map_owner);
+	
+	SharedMapEntry entry;
+	if( !shared_map.ContainsKey(prop) ) {
+		entry.InitFunc(plugin, plugin, fn, num_args);
+		entry.access |= (FlagFrozen|FlagLocked);
+		return shared_map.SetArray(prop, entry, sizeof(entry));
+	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType ) {
+		return false;
+	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+		return false;
+	}
+	
+	entry.InitFunc(shared_map_owner, plugin, fn, num_args);
+	return shared_map.SetArray(prop, entry, sizeof(entry));
+}
+
+/// Function GetFunc(const char[] prop);
+public any Native_SharedMap_GetFunc(Handle plugin, int numParams) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetFunc :: Error :: **** Bad SharedMap ID! ****");
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetFunc :: Error :: **** Failed to retrieve SharedMap ****");
+		return false;
+	}
+	
+	int len; GetNativeStringLength(2, len);
+	len++;
+	char[] prop = new char[len];
+	GetNativeString(2, prop, len);
+	
+	SharedMapEntry entry;
+	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType ) {
+		return false;
+	}
+	FuncObj fnobj; fnobj.fn = entry.fn;
+	any coercer[sizeof(fnobj)]; coercer = fnobj;
+	return coercer[0];
+}
+
+/// bool ExecFunc(const char[] prop, const char[] arg_fmt, any &ret, any ...);
+public any Native_SharedMap_ExecFunc(Handle plugin, int numParams) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.ExecFunc :: Error :: **** Bad SharedMap ID! ****");
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.ExecFunc :: Error :: **** Failed to retrieve SharedMap ****");
+		return false;
+	}
+	
+	int prop_len; GetNativeStringLength(2, prop_len);
+	prop_len++;
+	char[] prop = new char[prop_len];
+	GetNativeString(2, prop, prop_len);
+	
+	int fmt_len; GetNativeStringLength(3, fmt_len);
+	fmt_len++;
+	char[] arg_fmt = new char[fmt_len];
+	GetNativeString(3, arg_fmt, fmt_len);
+	
+	SharedMapEntry entry;
+	if( !shared_map.ContainsKey(prop) ) {
+		LogMessage("SharedMap.ExecFunc :: Error :: **** prop '%s' doesn't exist. ****", prop);
+		return false;
+	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType || entry.len != (fmt_len-1) ) {
+		return false;
+	} /*else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+		return false;
+	}
+	*/
+	int arg_fmt_len = fmt_len-1;
+	
+	Callable call; call.StartFunction(entry.fn_owner, entry.fn);
+	
+	any[] refs = new any[arg_fmt_len];
+	int presized_array_len, presized_str_len, saved_arrlen;
+	for( int i; i < arg_fmt_len && i <= numParams; i++ ) {
+		/// i + 5 for actual args.
+		switch( arg_fmt[i] ) {
+			case 'l': {
+				if( i+1 < arg_fmt_len && i+1 <= numParams ) {
+					int a = GetNativeCellRef(i + 5);
+					if( arg_fmt[i+1]=='A' ) {
+						if( presized_array_len != 0 ) {
+							LogMessage("SharedMap.ExecFunc :: Error :: **** cannot have more than one array buffer. ****");
+							return false;
+						}
+						presized_array_len = a;
+					} else if( arg_fmt[i+1]=='S' ) {
+						if( presized_str_len != 0 ) {
+							LogMessage("SharedMap.ExecFunc :: Error :: **** cannot have more than one string buffer. ****");
+							return false;
+						}
+						presized_str_len = a;
+					}
+				}
+			}
+		}
+	}
+	
+	any[]  presized_array = new any[presized_array_len];
+	char[] presized_str   = new char[presized_str_len];
+	int[]  players        = new int[MaxClients];
+	for( int i; i < arg_fmt_len && i <= numParams; i++ ) {
+		/// i + 5 for actual args.
+		switch( arg_fmt[i] ) {
+			case 'i': {
+				any a = GetNativeCellRef(i + 5);
+				call.PushCell(a);
+			}
+			case 'I': {
+				refs[i] = GetNativeCellRef(i + 5);
+				call.PushFloat(refs[i]);
+			}
+			case 'f': {
+				float a = GetNativeCellRef(i + 5);
+				call.PushFloat(a);
+			}
+			case 'F': {
+				/// doing this on an int type by accident CRASHES SM? 
+				float f = GetNativeCellRef(i + 5);
+				refs[i] = f;
+				call.PushCellRef(refs[i]);
+			}
+			case 'l': {
+				if( (i+1 < arg_fmt_len && i+1 <= numParams) && arg_fmt[i+1]=='a' ) {
+					any a = GetNativeCellRef(i + 5);
+					saved_arrlen = a;
+				} else {
+					/// length int arg without following string or array arg? bad.
+					LogMessage("SharedMap.ExecFunc :: Error :: **** no 'a' after 'l'. ****");
+					call.Cancel();
+					return false;
+				}
+			}
+			case 's': {
+				int arg_len;
+				GetNativeStringLength(i + 5, arg_len);
+				arg_len++;
+				char[] s = new char[arg_len];
+				GetNativeString(i + 5, s, arg_len);
+				call.PushString(s, arg_len, _, false);
+			}
+			case 'a': {
+				if( i-1 < 0 || arg_fmt[i-1] != 'l' ) {
+					LogMessage("SharedMap.ExecFunc :: Error :: **** 'a' without previous 'l'. ****");
+					call.Cancel();
+					return false;
+				}
+				int arg_len = saved_arrlen;
+				any[] arg_array = new any[arg_len];
+				GetNativeArray(i + 5, arg_array, arg_len);
+				call.PushArray(arg_array, arg_len, false);
+			}
+			case 'A': {
+				if( i-1 < 0 || arg_fmt[i-1] != 'l' ) {
+					LogMessage("SharedMap.ExecFunc :: Error :: **** 'A' without previous 'l'. ****");
+					call.Cancel();
+					return false;
+				}
+				GetNativeArray(i + 5, presized_array, presized_array_len);
+				call.PushArray(presized_array, presized_array_len, true);
+			}
+			case 'S': {
+				if( i-1 < 0 || arg_fmt[i-1] != 'l' ) {
+					LogMessage("SharedMap.ExecFunc :: Error :: **** 'S' without previous 'l'. ****");
+					call.Cancel();
+					return false;
+				}
+				GetNativeString(i + 5, presized_str, presized_str_len);
+				call.PushString(presized_str, presized_str_len, _, true);
+			}
+			case 'p': {
+				int[] plyrs = new int[MaxClients];
+				GetNativeArray(i + 5, plyrs, MaxClients);
+				call.PushArray(plyrs, MaxClients, false);
+			}
+			case 'P': {
+				GetNativeArray(i + 5, players, MaxClients);
+				call.PushArray(players, MaxClients, true);
+			}
+			default: {
+				LogMessage("SharedMap.ExecFunc :: Error :: **** unknown char in fmt '%c'. ****", arg_fmt[i]);
+				call.Cancel();
+				return false;
+			}
+		}
+	}
+	
+	any res; call.Finish(res);
+	SetNativeCellRef(4, res);
+	
+	for( int i; i < fmt_len-1 && i <= numParams; i++ ) {
+		/// i + 5 for actual args.
+		switch( arg_fmt[i] ) {
+			case 'I': {
+				SetNativeCellRef(i + 5, refs[i]);
+			}
+			case 'F': {
+				float f = refs[i];
+				SetNativeCellRef(i + 5, f);
+			}
+			case 'A': {
+				SetNativeArray(i + 5, presized_array, presized_array_len);
+			}
+			case 'S': {
+				SetNativeString(i + 5, presized_str, presized_str_len);
+			}
+			case 'P': {
+				SetNativeArray(i + 5, players, MaxClients);
+			}
+		}
+	}
+	return true;
+}
+
+
+/// bool Has(const char[] prop);
+public any Native_SharedMap_Has(Handle plugin, int numParams) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Has :: Error :: **** Bad SharedMap ID! ****");
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Has :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -983,12 +1263,14 @@ public any Native_SharedMap_Has(Handle plugin, int numParams) {
 public any Native_SharedMap_TypeOf(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.TypeOf :: Error :: **** Bad SharedMap ID! ****");
 		return InvalidType;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.TypeOf :: Error :: **** Failed to retrieve SharedMap ****");
 		return InvalidType;
 	}
 	
@@ -1008,12 +1290,14 @@ public any Native_SharedMap_TypeOf(Handle plugin, int numParams) {
 public any Native_SharedMap_Delete(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Delete :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Delete :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1037,12 +1321,14 @@ public any Native_SharedMap_Delete(Handle plugin, int numParams) {
 public any Native_SharedMap_IsLocked(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.IsLocked :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.IsLocked :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -1062,12 +1348,14 @@ public any Native_SharedMap_IsLocked(Handle plugin, int numParams) {
 public any Native_SharedMap_IsFrozen(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.IsFrozen :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.IsFrozen :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	
@@ -1087,12 +1375,14 @@ public any Native_SharedMap_IsFrozen(Handle plugin, int numParams) {
 public any Native_SharedMap_Lock(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Lock :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Lock :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1116,12 +1406,14 @@ public any Native_SharedMap_Lock(Handle plugin, int numParams) {
 public any Native_SharedMap_Unlock(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Unlock :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Unlock :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1145,12 +1437,14 @@ public any Native_SharedMap_Unlock(Handle plugin, int numParams) {
 public any Native_SharedMap_Freeze(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Freeze :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Freeze :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1174,12 +1468,14 @@ public any Native_SharedMap_Freeze(Handle plugin, int numParams) {
 public any Native_SharedMap_Unfreeze(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Unfreeze :: Error :: **** Bad SharedMap ID! ****");
 		return false;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Unfreeze :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1203,12 +1499,14 @@ public any Native_SharedMap_Unfreeze(Handle plugin, int numParams) {
 public any Native_SharedMap_Len_get(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
 	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.Len :: Error :: **** Bad SharedMap ID! ****");
 		return -1;
 	}
 	
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.Len :: Error :: **** Failed to retrieve SharedMap ****");
 		return -1;
 	}
 	return shared_map.Size;
@@ -1229,6 +1527,7 @@ public any Native_LibModSys_DestroySharedMap(Handle plugin, int numParams) {
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("LibModSys_DestroySharedMap :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	
@@ -1281,6 +1580,7 @@ public any Native_LibModSys_ClearSharedMap(Handle plugin, int numParams) {
 	StringMap shared_map;
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("LibModSys_ClearSharedMap :: Error :: **** Failed to retrieve SharedMap ****");
 		return false;
 	}
 	

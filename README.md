@@ -3,7 +3,7 @@ A runtime/plugin-based, inter-plugin communication library for SourceMod.
 
 
 ## Version
-vers 1.2.0a
+vers 1.3.0a
 
 
 ## Purpose
@@ -28,7 +28,7 @@ Each type of manager has different strengths to them.
 -- Plugins can optionally **[Un]Lock** (prevents other plugin's except `SharedMap` creator/owner plugin from deleting the property) and/or **[Un]Freeze** (prevents other plugin's except `SharedMap` creator/owner plugin from changing the property data).
 -- `SharedMap`s are more type safe than normal `StringMap`s and allow you to get the length of an array or string of a property!
 -- `SharedMap`s are safe to share and impossible to destroy/clear from other plugins that didn't initialize the `SharedMap`!
-
+-- `SharedMap`s can cache functions and can be invoked via prop of the function and uses an argument parsing string.
 
 ## How To Use
 
@@ -36,7 +36,7 @@ Each type of manager has different strengths to them.
 
 check out `configs/plugin_manager/global_fwds.cfg` to see an example config file on setting up forwards and modify/add forwards as needed.
 
-Here's a code example, remember that there's only ever _one_ Global Forward manager [pointless to have and manage multiple].
+Here's a code example, remember that there's only ever _one_ Global Forward manager [pointless to have & manage multiple].
 ```cs
 /// get a global forward object from
 /// the forward set up in `configs/plugin_manager/global_fwds.cfg`.
@@ -186,3 +186,11 @@ public bool AwaitChannel() {
 
 It's important to remember that you can use the `SharedMap` map constructor to _retrieve_ a `SharedMap` from a specific channel. Inputing a different channel name [this includes typos] will open a new channel and create a new `SharedMap` for that plugin as the owner. This also allows a plugin dev to have specific and/or _tiered_ `SharedMap`s to be used as the data set for a group of subplugins/modules.
 
+
+From all of this combined, a general pattern of module systems arises into 3 different categories:
+
+**Component-plugins** are plugins that implement and handle a specific functionality/data independently from other plugins.
+**Framework-plugins** are plugins that are basically the skeleton of a set of behaviors/actions.
+**System-plugins** are plugins that merge the data/functionality of component-plugins and the behavior of framework-plugins.
+
+An example of this concept is the idea of a store plugin/mod. You have **Money** & **Item** _component-plugins_, a **Store** _framework-plugin_, and a **Menu** _system-plugin_ that connects the Money & Item component-plugins with the Store framework-plugin.

@@ -339,6 +339,7 @@ stock int LibModSys_GetModulesByFlags(ManagerID id, PluginModule[] modules, int 
 
 
 
+
 /// Shared Map.
 /// For plugins and their systems be able to share data.
 /// Besides having additional data to set, SharedMaps can LOCK specific props.
@@ -352,42 +353,69 @@ stock int LibModSys_GetModulesByFlags(ManagerID id, PluginModule[] modules, int 
 methodmap SharedMap {
 	public native SharedMap(const char[] channel);
 	
-	public native bool   GetInt(const char[] prop, int &i);
-	public native bool   GetFloat(const char[] prop, float &f);
-	public native bool   GetAny(const char[] prop, any &a, SPType sp_type=AnyType);
+	public native bool     GetInt(const char[] prop, int &i);
+	public native bool     GetFloat(const char[] prop, float &f);
+	public native bool     GetAny(const char[] prop, any &a, SPType sp_type=AnyType);
 	
 	/// -1 on error. returns 'len' on success.
-	public native int    GetStrLen(const char[] prop);
-	public native int    GetStr(const char[] prop, char[] buf, int len);
-	public native int    GetArrLen(const char[] prop);
-	public native int    GetArr(const char[] prop, any[] buf, int len, SPType sp_type=AnyType);
+	public native int      GetStrLen(const char[] prop);
+	public native int      GetStr(const char[] prop, char[] buf, int len);
+	public native int      GetArrLen(const char[] prop);
+	public native int      GetArr(const char[] prop, any[] buf, int len, SPType sp_type=AnyType);
 	
 	/// gets owner who set the property.
 	/// can be null if owner was unloaded/crashed.
-	public native Handle GetOwner(const char[] prop);
+	public native Handle   GetOwner(const char[] prop);
 	
-	public native bool   SetInt(const char[] prop, int value);
-	public native bool   SetFloat(const char[] prop, float value);
-	public native bool   SetAny(const char[] prop, any value, SPType sp_type=AnyType);
-	public native bool   SetStr(const char[] prop, const char[] value);
-	public native bool   SetArr(const char[] prop, const any[] value, int len, SPType sp_type=AnyType);
+	public native bool     SetInt(const char[] prop, int value);
+	public native bool     SetFloat(const char[] prop, float value);
+	public native bool     SetAny(const char[] prop, any value, SPType sp_type=AnyType);
+	public native bool     SetStr(const char[] prop, const char[] value);
+	public native bool     SetArr(const char[] prop, const any[] value, int len, SPType sp_type=AnyType);
 	
-	public native bool   Has(const char[] prop);
-	public native SPType TypeOf(const char[] prop);
-	public native bool   Delete(const char[] prop);
+	/// Useful for not having to make natives.
+	public native bool     SetFunc(const char[] prop, Function f, int num_args);
+	public native Function GetFunc(const char[] prop);
+	
+	/**
+	 * all args are passed by reference.
+	 * use this like .ExecFunc("f", "iii", a, b, c);
+	 * Format:
+	 * i - int/bool/Handle/etc.
+	 * f - float
+	 * s - const char[] string - doesn't need 'l' length int.
+	 * a - const any[] array
+	 * l - length int for an array or string. NOTE:: You NEED an 'a' EXACTLY after the 'l' like: "la"
+	 * p - const int[] client userids. doesn't need 'l' length int, uses MaxClients int.
+	 * 
+	 * I - int&/bool&
+	 * F - float&
+	 * A - any[] - only allowed ONE buffer array per function.
+	 * S - char[] - only allowed ONE buffer string per function.
+	 * P - int[] client userids. doesn't need 'l' length int, uses MaxClients int.
+	 * 
+	 * 
+	 * NO WHITESPACE OR ANY OTHER CHARACTERS.
+	 * 
+	 */
+	public native bool     ExecFunc(const char[] prop, const char[] arg_fmt, any &ret=0, any ...);
+	
+	public native bool     Has(const char[] prop);
+	public native SPType   TypeOf(const char[] prop);
+	public native bool     Delete(const char[] prop);
 	
 	/// Locked properties cannot be deleted except by the plugin who set the property first.
 	/// -1 if error, 0 if not locked, 1 if locked.
-	public native int    IsLocked(const char[] prop);
+	public native int      IsLocked(const char[] prop);
 	/// Frozen properties cannot be changed/modified/set except by the plugin who set the property first.
 	/// -1 if error, 0 if not frozen, 1 if frozen.
-	public native int    IsFrozen(const char[] prop);
+	public native int      IsFrozen(const char[] prop);
 	
 	/// NOTE: a prop with no owner cannot be [un]locked or [un]frozen.
-	public native bool   Lock(const char[] prop);
-	public native bool   Unlock(const char[] prop);
-	public native bool   Freeze(const char[] prop);
-	public native bool   Unfreeze(const char[] prop);
+	public native bool     Lock(const char[] prop);
+	public native bool     Unlock(const char[] prop);
+	public native bool     Freeze(const char[] prop);
+	public native bool     Unfreeze(const char[] prop);
 	
 	public bool Protect(const char[] prop) {
 		return this.Lock(prop) && this.Freeze(prop);
@@ -452,6 +480,10 @@ public void __pl_libmodsys_SetNTVOptional() {
 	MarkNativeAsOptional("SharedMap.SetAny");
 	MarkNativeAsOptional("SharedMap.SetStr");
 	MarkNativeAsOptional("SharedMap.SetArr");
+	
+	MarkNativeAsOptional("SharedMap.SetFunc");
+	MarkNativeAsOptional("SharedMap.GetFunc");
+	MarkNativeAsOptional("SharedMap.ExecFunc");
 	
 	MarkNativeAsOptional("SharedMap.Has");
 	MarkNativeAsOptional("SharedMap.TypeOf");

@@ -42,15 +42,16 @@ enum { /** some basic, commonly used "defines" */
 
 enum SPType { /// Type information for sending to modules.
 	InvalidType,
-	AnyType, CharType, IntType, FloatType, HandleType,
-	FuncType, EnumType, MethodMapType, BoolType, VecType,
+	AnyType,  CharType, IntType,       FloatType, HandleType,
+	FuncType, EnumType, MethodMapType, BoolType,  VecType,
 	ArrayType = 1 << 4, /// 16
-	/// CharType   + ArrayType == char[].
-	/// IntType    + ArrayType == int[].
-	/// FloatType  + ArrayType == float[].
-	/// HandleType + ArrayType == Handle[].
-	/// AnyType    + ArrayType == any[]/enum struct.
-	/// FuncType   + ArrayType == function[].
+	RefType   = 1 << 5, /// 32
+	/// CharType   | ArrayType == char[].
+	/// IntType    | ArrayType == int[].
+	/// FloatType  | ArrayType == float[].
+	/// HandleType | ArrayType == Handle[].
+	/// AnyType    | ArrayType == any[]/enum struct.
+	/// FuncType   | ArrayType == function[].
 };
 
 enum ManagerID {
@@ -71,16 +72,26 @@ enum struct FuncObj {
 	Function fn;
 	//Handle owner; /// owner plugin.
 }
+
 stock any[] MakeFuncObj(Function fn=INVALID_FUNCTION) {
 	FuncObj f; f.fn = fn;
 	return f;
 }
+
 
 enum struct Callable {
 	bool in_call_setup;
 	
 	bool StartFunc(Handle plugin, const char[] name) {
 		Function f = GetFunctionByName(plugin, name);
+		if( f==INVALID_FUNCTION || this.in_call_setup ) {
+			return false;
+		}
+		Call_StartFunction(plugin, f);
+		this.in_call_setup = true;
+		return true;
+	}
+	bool StartFunction(Handle plugin, Function f) {
 		if( f==INVALID_FUNCTION || this.in_call_setup ) {
 			return false;
 		}

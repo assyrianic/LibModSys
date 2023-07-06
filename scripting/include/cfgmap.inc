@@ -65,9 +65,8 @@ typeset CustomKVParse {
 	function void (const KeyValState kvstate, const char[] key, const char[] value, bool key_quotes, bool value_quotes);
 }
 
-typeset KVIterFunc {
-	function void (const char[] key, int keylen, KeyValType kvtype);
-}
+typedef KVIterFunc = function void (ConfigMap sect, const char[] key, int keylen, KeyValType kvtype);
+typedef ConfigMapSectionFilter = function bool(const char[] name, ConfigMap cursection);
 
 enum struct KeyValState {
 	SMCParser parser;
@@ -146,7 +145,7 @@ methodmap ConfigMap < StringMap {
 			}
 			
 			if( g_kvstate.top != null ) {
-				DeleteCfg(cfg);
+				DeleteCfg(view_as< ConfigMap >(cfg));
 				g_kvstate.top = null;
 			}
 		}
@@ -330,6 +329,30 @@ methodmap ConfigMap < StringMap {
 		PackVal val;
 		bool result = this.GetVal(key_path, val);
 		return( result && val.tag==KeyValType_Value )? val.size : 0;
+	}
+	
+	/**
+	 *
+	 * name:      GetSectionSize
+	 * @param     key_path : key path to the section.
+	 * @return    entries in the section.
+	 * @note      to directly access subsections, use a '.' like "root.section.key"
+	 *
+	 */
+	public int GetSectionSize(const char[] key_path) {
+		if( this==null ) {
+			return 0;
+		}
+		
+		PackVal val;
+		bool result = this.GetVal(key_path, val);
+		if( !result || val.tag != KeyValType_Section ) {
+			return 0;
+		}
+		
+		val.data.Reset();
+		ConfigMap cfgmap = view_as< ConfigMap >( val.data.ReadCell() );
+		return cfgmap.Size;
 	}
 	
 	/**
@@ -685,7 +708,7 @@ methodmap ConfigMap < StringMap {
 		return this.GetBool(key_str, b, simple);
 	}
 	
-	/// function void (const char[] key, int keylen, KeyValType kvtype);
+	/// function void (ConfigMap sect, const char[] key, int keylen, KeyValType kvtype);
 	public bool ForEachKey(KVIterFunc iter_func) {
 		if( this==null || iter_func==INVALID_FUNCTION ) {
 			return false;
@@ -703,6 +726,7 @@ methodmap ConfigMap < StringMap {
 			snap.GetKey(i, key_buffer, strsize);
 			PackVal val; this.GetArray(key_buffer, val, sizeof(val));
 			Call_StartFunction(null, iter_func);
+			Call_PushCell(this);
 			Call_PushString(key_buffer);
 			Call_PushCell(strsize);
 			Call_PushCell(val.tag);
@@ -711,6 +735,98 @@ methodmap ConfigMap < StringMap {
 		delete snap;
 		return true;
 	}
+	
+	public int GetSections(ConfigMap[] buffer, ConfigMapSectionFilter fn_filter=INVALID_FUNCTION) {
+		int count;
+		if( this==null ) {
+			return count;
+		}
+		
+		StringMapSnapshot snap = this.Snapshot();
+		if( snap==null ) {
+			return count;
+		}
+		
+		int entries = snap.Length;
+		for( int i; i < entries; i++ ) {
+			int strsize = snap.KeyBufferSize(i);
+			char[] key_buffer = new char[strsize];
+			snap.GetKey(i, key_buffer, strsize);
+			ConfigMap sect = this.GetSection(key_buffer);
+			if( sect==null ) {
+				continue;
+			}
+			
+			if( fn_filter != INVALID_FUNCTION ) {
+				Call_StartFunction(null, fn_filter);
+				Call_PushString(key_buffer);
+				Call_PushCell(sect);
+				bool res; Call_Finish(res);
+				if( !res ) {
+					continue;
+				}
+			}
+			buffer[count++] = sect;
+		}
+		delete snap;
+		return count;
+	}
+	
+	/**
+	 * 
+	 * name:      GetFloats
+	 * @param     key_path : string key of the section we're reading from.
+	 * @param     buf      : array of floats to store values.
+	 * @param     buf_size : given size of the float buffer.
+	 * @return    true if successful, false otherwise.
+	 */
+	/*
+	public bool GetFloats(const char[] key_path, float[] buf, int buf_size) {
+		if( this==null ) {
+			return false;
+		}
+		PackVal val;
+		if( this.GetVal(key_path, val) && val.tag==KeyValType_Section ) {
+			val.data.Reset();
+			ConfigMap section = val.data.ReadCell();
+			int sect_size = section.Size;
+			int len = ( sect_size > buf_size )? buf_size : sect_size;
+			for( int i; i < len; i++ ) {
+				section.GetIntKeyFloat(i, buf[i]);
+			}
+			return true;
+		}
+		return false;
+	}
+	*/
+	
+	/**
+	 * 
+	 * name:      GetInts
+	 * @param     key_path : string key of the section we're reading from.
+	 * @param     buf      : array of ints to store values.
+	 * @param     buf_size : given size of the int buffer.
+	 * @return    true if successful, false otherwise.
+	 */
+	/*
+	public bool GetInts(const char[] key_path, int[] buf, int buf_size, int base=10) {
+		if( this==null ) {
+			return false;
+		}
+		PackVal val;
+		if( this.GetVal(key_path, val) && val.tag==KeyValType_Section ) {
+			val.data.Reset();
+			ConfigMap section = val.data.ReadCell();
+			int sect_size = section.Size;
+			int len = ( sect_size > buf_size )? buf_size : sect_size;
+			for( int i; i < len; i++ ) {
+				section.GetIntKeyInt(i, buf[i], base);
+			}
+			return true;
+		}
+		return false;
+	}
+	*/
 };
 
 public SMCResult ConfigMap_OnNewSection(SMCParser smc, const char[] name, bool opt_quotes) {
