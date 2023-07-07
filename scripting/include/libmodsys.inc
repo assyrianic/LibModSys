@@ -425,6 +425,119 @@ methodmap SharedMap {
 		return this.Unlock(prop) && this.Unfreeze(prop);
 	}
 	
+	/// integer-based key methods.
+	public bool IntGetInt(int prop, int &i) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetInt(key, i);
+	}
+	public bool IntGetFloat(int prop, float &f) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetFloat(key, f);
+	}
+	public bool IntGetAny(int prop, any &a, SPType sp_type=AnyType) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetAny(key, a, sp_type);
+	}
+	
+	public int IntGetStrLen(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetStrLen(key);
+	}
+	public int IntGetStr(int prop, char[] buf, int len) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetStr(key, buf, len);
+	}
+	public int IntGetArrLen(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetArrLen(key);
+	}
+	public int IntGetArr(int prop, any[] buf, int len, SPType sp_type=AnyType) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetArr(key, buf, len, sp_type);
+	}
+	
+	public Handle IntGetOwner(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetOwner(key);
+	}
+	
+	public bool IntSetInt(int prop, int value) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetInt(key, value);
+	}
+	public bool IntSetFloat(int prop, float value) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetFloat(key, value);
+	}
+	public bool IntSetAny(int prop, any value, SPType sp_type=AnyType) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetAny(key, value, sp_type);
+	}
+	public bool IntSetStr(int prop, const char[] value) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetStr(key, value);
+	}
+	public bool IntSetArr(int prop, const any[] value, int len, SPType sp_type=AnyType) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetArr(key, value, len, sp_type);
+	}
+	
+	public bool IntSetFunc(int prop, Function f, int num_args) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.SetFunc(key, f, num_args);
+	}
+	public Function IntGetFunc(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetFunc(key);
+	}
+	
+	public bool IntHas(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Has(key);
+	}
+	public SPType IntTypeOf(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.TypeOf(key);
+	}
+	public bool IntDelete(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Delete(key);
+	}
+	
+	public int IntIsLocked(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.IsLocked(key);
+	}
+	public int IntIsFrozen(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.IsFrozen(key);
+	}
+	
+	public bool IntLock(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Lock(key);
+	}
+	public bool IntUnlock(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Unlock(key);
+	}
+	public bool IntFreeze(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Freeze(key);
+	}
+	public bool IntUnfreeze(int prop) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.Unfreeze(key);
+	}
+	
+	public bool IntProtect(int prop) {
+		return this.IntLock(prop) && this.IntFreeze(prop);
+	}
+	
+	public bool IntUnprotect(int prop) {
+		return this.IntUnlock(prop) && this.IntUnfreeze(prop);
+	}
+	
 	/// -1 if error.
 	property int Len {
 		public native get();
