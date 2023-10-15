@@ -189,8 +189,12 @@ It's important to remember that you can use the `SharedMap` map constructor to _
 
 From all of this combined, a general pattern of module systems arises into 3 different categories:
 
+
 **Component-plugins** are plugins that implement and handle a specific functionality/data independently from other plugins.
+
 **Framework-plugins** are plugins that are basically the skeleton of a set of behaviors/actions.
+
 **System-plugins** are plugins that merge the data/functionality of component-plugins and the behavior of framework-plugins.
+
 
 An example of this concept is the idea of a store plugin/mod. You have **Money** & **Item** _component-plugins_, a **Store** _framework-plugin_, and a **Menu** _system-plugin_ that connects the Money & Item component-plugins with the Store framework-plugin.
