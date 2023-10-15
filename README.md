@@ -3,7 +3,7 @@ A runtime/plugin-based, inter-plugin communication library for SourceMod.
 
 
 ## Version
-vers 1.3.0a
+vers 1.4.0b
 
 
 ## Purpose
@@ -178,7 +178,7 @@ public bool AwaitChannel() {
 	if( !LibModSys_ChannelExists("my_plugin") ) {
 		return false;
 	}
-	SharedMap g_shmap = SharedMap("my_plugin");
+	SharedMap shmap = SharedMap("my_plugin");
 	...
 	return true;
 }

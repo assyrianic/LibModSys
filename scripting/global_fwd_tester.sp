@@ -38,14 +38,20 @@ public void OnLibraryAdded(const char[] name) {
 	}
 }
 
-static SharedMap g_shmap;
 public bool AwaitChannel() {
 	if( !LibModSys_ChannelExists("global_fwd_tester") ) {
 		return false;
 	}
-	g_shmap = SharedMap("global_fwd_tester");
+	
+	SharedMap shmap = SharedMap("global_fwd_tester");
+	shmap.SetFunc("int ExecFuncTest()", ExecFuncTest, 0);
 	return true;
 }
+
+public int ExecFuncTest() {
+	return 1;
+}
+
 
 public Action OnGlobalFwdExampleName(int p1, any p2, const char[] p3, int &p4, float &p5) {
 	PrintToServer("Running OnGlobalFwdExampleName");

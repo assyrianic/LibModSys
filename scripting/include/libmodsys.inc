@@ -362,6 +362,7 @@ methodmap SharedMap {
 	public native int      GetStr(const char[] prop, char[] buf, int len);
 	public native int      GetArrLen(const char[] prop);
 	public native int      GetArr(const char[] prop, any[] buf, int len, SPType sp_type=AnyType);
+	//public native int      GetArrIdxVal(const char[] prop, int index, any &buf, SPType sp_type=AnyType);
 	
 	/// gets owner who set the property.
 	/// can be null if owner was unloaded/crashed.
@@ -372,6 +373,7 @@ methodmap SharedMap {
 	public native bool     SetAny(const char[] prop, any value, SPType sp_type=AnyType);
 	public native bool     SetStr(const char[] prop, const char[] value);
 	public native bool     SetArr(const char[] prop, const any[] value, int len, SPType sp_type=AnyType);
+	//public native bool     SetArrIdxVal(const char[] prop, int index, any buf, SPType sp_type=AnyType);
 	
 	/// Useful for not having to make natives.
 	public native bool     SetFunc(const char[] prop, Function f, int num_args);
@@ -455,6 +457,12 @@ methodmap SharedMap {
 		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
 		return this.GetArr(key, buf, len, sp_type);
 	}
+	/*
+	public bool IntGetArrIdxVal(int prop, int index, any &buf, SPType sp_type=AnyType) {
+		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
+		return this.GetArrIdxVal(key, index, buf, sp_type);
+	}
+	*/
 	
 	public Handle IntGetOwner(int prop) {
 		char key[CELL_KEY_SIZE]; PackCellToStr(prop, key);
@@ -586,6 +594,7 @@ public void __pl_libmodsys_SetNTVOptional() {
 	MarkNativeAsOptional("SharedMap.GetStr");
 	MarkNativeAsOptional("SharedMap.GetArrLen");
 	MarkNativeAsOptional("SharedMap.GetArr");
+	//MarkNativeAsOptional("SharedMap.GetArrIdxVal");
 	MarkNativeAsOptional("SharedMap.GetOwner");
 	
 	MarkNativeAsOptional("SharedMap.SetInt");

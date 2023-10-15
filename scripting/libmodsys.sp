@@ -236,6 +236,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("SharedMap.GetStr",                 Native_SharedMap_GetStr);
 	CreateNative("SharedMap.GetArrLen",              Native_SharedMap_GetArrLen);
 	CreateNative("SharedMap.GetArr",                 Native_SharedMap_GetArr);
+	//CreateNative("SharedMap.GetArrIdxVal",           Native_SharedMap_GetArrIdxVal);
 	CreateNative("SharedMap.GetOwner",               Native_SharedMap_GetOwner);
 	
 	CreateNative("SharedMap.SetInt",                 Native_SharedMap_SetInt);
@@ -753,6 +754,47 @@ public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
 	return buf_len;
 }
 
+/*
+/// bool GetArrIdxVal(const char[] prop, int index, any &buf, SPType sp_type=AnyType);
+public any Native_SharedMap_GetArrIdxVal(Handle plugin, int numParams) {
+	ManagerID shmap_id = GetNativeCell(1);
+	if( shmap_id==InvalidManagerID ) {
+		LogMessage("SharedMap.GetArr :: Error :: **** Bad SharedMap ID! ****");
+		return false;
+	}
+	
+	StringMap shared_map;
+	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
+	if( !g_mmp.shmap_ids.GetValue(id_key, shared_map) ) {
+		LogMessage("SharedMap.GetArr :: Error :: **** Failed to retrieve SharedMap ****");
+		return false;
+	}
+	
+	int len; GetNativeStringLength(2, len);
+	len++;
+	char[] prop = new char[len];
+	GetNativeString(2, prop, len);
+	
+	SharedMapEntry entry;
+	SPType sptype = GetNativeCell(5);
+	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != (sptype | ArrayType) ) {
+		return false;
+	}
+	
+	any[] buf = new any[entry.len];
+	DataPack dp = entry.data;
+	dp.Reset();
+	dp.ReadCellArray(buf, entry.len);
+	
+	int index = GetNativeCell(3);
+	if( 0 <= index < entry.len ) {
+		SetNativeCellRef(4, buf[index]);
+		return true;
+	}
+	return false;
+}
+*/
+
 /// Handle GetOwner(const char[] prop);
 public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
 	ManagerID shmap_id = GetNativeCell(1);
@@ -814,7 +856,7 @@ public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != IntType ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -852,7 +894,7 @@ public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FloatType ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -891,7 +933,7 @@ public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != sptype ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -932,7 +974,7 @@ public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != (CharType | ArrayType) ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -976,7 +1018,7 @@ public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != (sptype | ArrayType) ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -1018,7 +1060,7 @@ public any Native_SharedMap_SetFunc(Handle plugin, int numParams) {
 		return shared_map.SetArray(prop, entry, sizeof(entry));
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType ) {
 		return false;
-	} else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	
@@ -1086,7 +1128,7 @@ public any Native_SharedMap_ExecFunc(Handle plugin, int numParams) {
 		return false;
 	} else if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType || entry.len != (fmt_len-1) ) {
 		return false;
-	} /*else if( !( entry.PluginCanMutate(plugin) || shared_map_owner==plugin ) ) {
+	} /*else if( !entry.PluginCanMutate(plugin) && shared_map_owner != plugin ) {
 		return false;
 	}
 	*/
@@ -1132,7 +1174,7 @@ public any Native_SharedMap_ExecFunc(Handle plugin, int numParams) {
 			}
 			case 'I': {
 				refs[i] = GetNativeCellRef(i + 5);
-				call.PushFloat(refs[i]);
+				call.PushCellRef(refs[i]);
 			}
 			case 'f': {
 				float a = GetNativeCellRef(i + 5);

@@ -680,7 +680,7 @@ enum struct GlobalFwdsManager {
 		
 		int size = glbl_fwds.Size;
 		for( int i; i < size; i++ ) {
-			ConfigMap glbl_fwd = glbl_fwds.GetIntSection(i);
+			ConfigMap glbl_fwd = glbl_fwds.GetIntKeySection(i);
 			if( glbl_fwd==null ) {
 				LogError("GlobalFwdsManager :: Error: **** in enumerated global forwards section, enum number '%i' is null! ****", i);
 				continue;
@@ -803,7 +803,7 @@ enum struct PrivateFwdsManager {
 		
 		int size = priv_fwds.Size;
 		for( int i; i < size; i++ ) {
-			ConfigMap priv_fwd = priv_fwds.GetIntSection(i);
+			ConfigMap priv_fwd = priv_fwds.GetIntKeySection(i);
 			if( priv_fwd==null ) {
 				LogError("PrivateFwdsManager :: Error: **** in enumerated private forwards section, enum number '%i' is null! ****", i);
 				continue;
@@ -981,40 +981,51 @@ stock bool IsValidClient(int client, bool replaycheck=true) {
 
 /// useful for cooldowns.
 /// Static Time, saves the current `GetGameTime`.
-enum struct StaticTime {
-	float t;
+methodmap StaticTime {
+	public StaticTime(float val) {
+		return view_as< StaticTime >(val);
+	}
+	public static StaticTime Update() {
+		return view_as< StaticTime >( GetGameTime() );
+	}
 	
-	void Update() {
-		this.t = GetGameTime();
+	property float Time {
+		public get() { return view_as< float >(this); }
 	}
-	float Curr() {
-		return this.t;
+	public float Curr() {
+		return this.Time;
 	}
-	float Elapsed() {
-		return GetGameTime() - this.t;
+	public float Elapsed() {
+		return GetGameTime() - this.Time;
 	}
-	bool WithinTime(float delay_time) {
-		return (GetGameTime() - this.t) <= delay_time;
+	public bool WithinTime(float delay_time) {
+		return (GetGameTime() - this.Time) <= delay_time;
 	}
 }
 
 /// Forward Time, saves the current `GetGameTime` + delta value.
-enum struct FwdTime {
-	float t;
+methodmap ForwardTime {
+	public ForwardTime(float val) {
+		return view_as< ForwardTime >(val);
+	}
+	public static ForwardTime Update(float delta=1.0) {
+		return view_as< ForwardTime >(GetGameTime() + delta);
+	}
 	
-	void Update(float delta=1.0) {
-		this.t = GetGameTime() + delta;
+	property float Time {
+		public get() { return view_as< float >(this); }
 	}
-	float Curr() {
-		return this.t;
+	public float Curr() {
+		return this.Time;
 	}
-	float Elapsed() {
-		return this.t - GetGameTime();
+	public float Elapsed() {
+		return this.Time - GetGameTime();
 	}
-	bool WithinTime() {
-		return GetGameTime() <= this.t; 
+	public bool WithinTime() {
+		return GetGameTime() <= this.Time;
 	}
 }
+
 
 stock bool IsIntInBounds(int val, int max, int min) {
 	return ((val - min) * (max - val)) >= 0;
