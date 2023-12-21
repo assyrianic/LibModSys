@@ -21,10 +21,11 @@ enum {
 	FlagLocked  = 1 << 0,
 	FlagFrozen  = 1 << 1,
 };
-enum struct SharedMapEntry {
+enum struct SharedMapEntry { /// God, 540 bytes PER ENTRY...
+	char     owner_name[PLATFORM_MAX_PATH];
 	Handle   owner; /// owner that can [un]lock/[un]freeze this entry.
-	any      data;  /// if any Array type, this is a DataPack.
-	Function fn;
+	any      data[1];  /// if any Array type, this is a DataPack.
+	char     fn_owner_name[PLATFORM_MAX_PATH];
 	Handle   fn_owner;
 	int      len;
 	SPType   tag;   /// see anonymous enum in 'plugin_utils.inc'
@@ -38,53 +39,81 @@ enum struct SharedMapEntry {
 	}
 	
 	void InitAny(Handle plugin, any cell, SPType sptype=AnyType) {
-		this.tag   = sptype;
-		this.data  = cell;
-		this.owner = plugin;
-		this.len   = 1;
+		this.tag     = sptype;
+		this.data[0] = cell;
+		this.owner   = plugin;
+		GetPluginFilename(plugin, this.owner_name, sizeof(SharedMapEntry::owner_name));
+		this.len     = 1;
 	}
 	
 	void InitFloat(Handle plugin, float cell) {
-		this.tag   = FloatType;
-		this.data  = cell;
-		this.owner = plugin;
-		this.len   = 1;
+		this.tag     = FloatType;
+		this.data[0] = cell;
+		this.owner   = plugin;
+		GetPluginFilename(plugin, this.owner_name, sizeof(SharedMapEntry::owner_name));
+		this.len     = 1;
 	}
 	
 	void InitFunc(Handle plugin, Handle fn_owner, Function fn, int args) {
-		this.tag      = FuncType;
-		this.fn       = fn;
-		this.fn_owner = fn_owner;
-		this.owner    = plugin;
-		this.len      = args;
+		this.tag        = FuncType;
+		
+		FuncObj f; f.fn = fn;
+		this.data       = f;
+		this.fn_owner   = fn_owner;
+		GetPluginFilename(fn_owner, this.fn_owner_name, sizeof(SharedMapEntry::fn_owner_name));
+		
+		this.owner      = plugin;
+		GetPluginFilename(plugin, this.owner_name, sizeof(SharedMapEntry::owner_name));
+		
+		this.len        = args;
 	}
 	
 	void InitAnyArray(Handle plugin, const any[] data, int len, SPType sptype=AnyType) {
-		this.tag    = sptype | ArrayType;
-		DataPack dp = new DataPack();
+		this.tag     = sptype | ArrayType;
+		DataPack dp  = new DataPack();
 		dp.WriteCellArray(data, len);
-		this.owner  = plugin;
-		this.len    = len;
-		this.data   = dp;
+		this.owner   = plugin;
+		GetPluginFilename(plugin, this.owner_name, sizeof(SharedMapEntry::owner_name));
+		this.len     = len;
+		this.data[0] = dp;
 	}
 	
 	void InitStr(Handle plugin, const char[] data, int len) {
-		this.tag    = CharType | ArrayType;
-		DataPack dp = new DataPack();
+		this.tag     = CharType | ArrayType;
+		DataPack dp  = new DataPack();
 		dp.WriteString(data);
-		this.owner  = plugin;
-		this.len    = len;
-		this.data   = dp;
+		this.owner   = plugin;
+		GetPluginFilename(plugin, this.owner_name, sizeof(SharedMapEntry::owner_name));
+		this.len     = len;
+		this.data[0] = dp;
 	}
 	
 	void Destroy() {
 		if( !( this.tag & ArrayType ) ) {
 			return;
 		}
-		DataPack dp = this.data;
+		DataPack dp = this.data[0];
 		delete dp;
-		this.data = 0;
-		this.len  = 0;
+		this.data[0] = 0;
+		this.len = 0;
+	}
+	
+	Handle GetOwner(bool validate=false) {
+		if( validate && !IsValidPlugin(this.owner) ) {
+			if( !UpdatePluginHandle(this.owner, this.owner_name) ) {
+				this.owner = null;
+			}
+		}
+		return this.owner;
+	}
+	
+	Handle GetFnOwner(bool validate=false) {
+		if( validate && !IsValidPlugin(this.fn_owner) ) {
+			if( !UpdatePluginHandle(this.fn_owner, this.fn_owner_name) ) {
+				this.fn_owner = null;
+			}
+		}
+		return this.fn_owner;
 	}
 }
 
@@ -540,6 +569,10 @@ public any Native_SharedMap_SharedMap(Handle plugin, int numParams) {
 	StringMap shared_map = new StringMap();
 	shared_map.SetValue("__dict_owner__", plugin);
 	
+	char pl_name[PLATFORM_MAX_PATH];
+	GetPluginFilename(plugin, pl_name, sizeof(pl_name));
+	shared_map.SetString("__dict_owner_name__", pl_name);
+	
 	char id_key[CELL_KEY_SIZE]; PackCellToStr(shmap_id, id_key);
 	g_mmp.shmap_ids.SetValue(id_key, shared_map);
 	g_mmp.shmap_managers.SetValue(channel, shmap_id);
@@ -570,7 +603,7 @@ public any Native_SharedMap_GetInt(Handle plugin, int numParams) {
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != IntType ) {
 		return false;
 	}
-	SetNativeCellRef(3, entry.data);
+	SetNativeCellRef(3, entry.data[0]);
 	return true;
 }
 
@@ -598,7 +631,7 @@ public any Native_SharedMap_GetFloat(Handle plugin, int numParams) {
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FloatType ) {
 		return false;
 	}
-	SetNativeCellRef(3, entry.data);
+	SetNativeCellRef(3, entry.data[0]);
 	return true;
 }
 
@@ -627,7 +660,7 @@ public any Native_SharedMap_GetAny(Handle plugin, int numParams) {
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != sptype ) {
 		return false;
 	}
-	SetNativeCellRef(3, entry.data);
+	SetNativeCellRef(3, entry.data[0]);
 	return true;
 }
 
@@ -685,7 +718,7 @@ public any Native_SharedMap_GetStr(Handle plugin, int numParams) {
 	
 	int buf_len = GetNativeCell(4);
 	char[] buf = new char[buf_len];
-	DataPack dp = entry.data;
+	DataPack dp = entry.data[0];
 	dp.Reset();
 	dp.ReadString(buf, buf_len);
 	SetNativeString(3, buf, buf_len);
@@ -747,7 +780,7 @@ public any Native_SharedMap_GetArr(Handle plugin, int numParams) {
 	
 	int buf_len = GetNativeCell(4);
 	any[] buf = new any[buf_len];
-	DataPack dp = entry.data;
+	DataPack dp = entry.data[0];
 	dp.Reset();
 	dp.ReadCellArray(buf, buf_len);
 	SetNativeArray(3, buf, buf_len);
@@ -782,7 +815,7 @@ public any Native_SharedMap_GetArrIdxVal(Handle plugin, int numParams) {
 	}
 	
 	any[] buf = new any[entry.len];
-	DataPack dp = entry.data;
+	DataPack dp = entry.data[0];
 	dp.Reset();
 	dp.ReadCellArray(buf, entry.len);
 	
@@ -819,11 +852,7 @@ public any Native_SharedMap_GetOwner(Handle plugin, int numParams) {
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) ) {
 		return 0;
 	}
-	
-	if( !IsValidPlugin(entry.owner) ) {
-		entry.owner = null;
-	}
-	return entry.owner;
+	return entry.GetOwner(true);
 }
 
 /// bool SetInt(const char[] prop, int value);
@@ -860,7 +889,7 @@ public any Native_SharedMap_SetInt(Handle plugin, int numParams) {
 		return false;
 	}
 	
-	entry.data = value;
+	entry.data[0] = value;
 	return shared_map.SetArray(prop, entry, sizeof(entry));
 }
 
@@ -898,7 +927,7 @@ public any Native_SharedMap_SetFloat(Handle plugin, int numParams) {
 		return false;
 	}
 	
-	entry.data = value;
+	entry.data[0] = value;
 	return shared_map.SetArray(prop, entry, sizeof(entry));
 }
 
@@ -937,7 +966,7 @@ public any Native_SharedMap_SetAny(Handle plugin, int numParams) {
 		return false;
 	}
 	
-	entry.data = value;
+	entry.data[0] = value;
 	return shared_map.SetArray(prop, entry, sizeof(entry));
 }
 
@@ -978,7 +1007,7 @@ public any Native_SharedMap_SetStr(Handle plugin, int numParams) {
 		return false;
 	}
 	
-	DataPack dp = entry.data;
+	DataPack dp = entry.data[0];
 	dp.Reset(true);
 	dp.WriteString(val_str);
 	entry.len = val_len;
@@ -1022,7 +1051,7 @@ public any Native_SharedMap_SetArr(Handle plugin, int numParams) {
 		return false;
 	}
 	
-	DataPack dp = entry.data;
+	DataPack dp = entry.data[0];
 	dp.Reset(true);
 	dp.WriteCellArray(val_arr, val_len);
 	entry.len = val_len;
@@ -1092,9 +1121,7 @@ public any Native_SharedMap_GetFunc(Handle plugin, int numParams) {
 	if( !shared_map.GetArray(prop, entry, sizeof(entry)) || entry.tag != FuncType ) {
 		return false;
 	}
-	FuncObj fnobj; fnobj.fn = entry.fn;
-	any coercer[sizeof(fnobj)]; coercer = fnobj;
-	return coercer[0];
+	return entry.data[0];
 }
 
 /// bool ExecFunc(const char[] prop, const char[] arg_fmt, any &ret, any ...);
@@ -1134,7 +1161,8 @@ public any Native_SharedMap_ExecFunc(Handle plugin, int numParams) {
 	*/
 	int arg_fmt_len = fmt_len-1;
 	
-	Callable call; call.StartFunction(entry.fn_owner, entry.fn);
+	Function fun = entry.data[0];
+	Callable call; call.StartFunction(entry.GetFnOwner(), fun);
 	
 	any[] refs = new any[arg_fmt_len];
 	int presized_array_len, presized_str_len, saved_arrlen;
@@ -1437,7 +1465,7 @@ public any Native_SharedMap_Lock(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.GetArray(prop, entry, sizeof(entry))
 		/// can't lock an already locked prop.
-		|| !( entry.owner==plugin || shared_map_owner==plugin ) || (entry.access & FlagLocked) > 0 ) {
+		|| !( entry.GetOwner()==plugin || shared_map_owner==plugin ) || (entry.access & FlagLocked) > 0 ) {
 		return false;
 	}
 	entry.access |= FlagLocked;
@@ -1468,7 +1496,7 @@ public any Native_SharedMap_Unlock(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.GetArray(prop, entry, sizeof(entry))
 		/// can't unlock an already unlocked prop.
-		|| !( entry.owner==plugin || shared_map_owner==plugin ) || (entry.access & FlagLocked)==0 ) {
+		|| !( entry.GetOwner()==plugin || shared_map_owner==plugin ) || (entry.access & FlagLocked)==0 ) {
 		return false;
 	}
 	entry.access &= ~FlagLocked;
@@ -1499,7 +1527,7 @@ public any Native_SharedMap_Freeze(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.GetArray(prop, entry, sizeof(entry))
 		/// can't lock an already locked prop.
-		|| !( entry.owner==plugin || shared_map_owner==plugin ) || (entry.access & FlagFrozen) > 0 ) {
+		|| !( entry.GetOwner()==plugin || shared_map_owner==plugin ) || (entry.access & FlagFrozen) > 0 ) {
 		return false;
 	}
 	entry.access |= FlagFrozen;
@@ -1530,7 +1558,7 @@ public any Native_SharedMap_Unfreeze(Handle plugin, int numParams) {
 	SharedMapEntry entry;
 	if( !shared_map.GetArray(prop, entry, sizeof(entry))
 		/// can't unlock an already unlocked prop.
-		|| !( entry.owner==plugin || shared_map_owner==plugin ) || (entry.access & FlagFrozen)==0 ) {
+		|| !( entry.GetOwner()==plugin || shared_map_owner==plugin ) || (entry.access & FlagFrozen)==0 ) {
 		return false;
 	}
 	entry.access &= ~FlagFrozen;

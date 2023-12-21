@@ -108,7 +108,7 @@ methodmap ConfigMap < StringMap {
 		g_kvstate.top         = new StringMap();
 		g_kvstate.debug_mode  = debug_mode;
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("ConfigMap Debug :: Allocated Main CFG Map | Handle: '%i'", g_kvstate.top);
+			LogMessage("ConfigMap Debug :: Allocated Main CFG Map | Handle: '%i'", g_kvstate.top);
 		}
 		g_kvstate.enum_global = g_kvstate.iota_global = 0;
 		g_kvstate.enum_local  = g_kvstate.iota_local = 0;
@@ -187,6 +187,9 @@ methodmap ConfigMap < StringMap {
 	}
 	property int Size {
 		public get() {
+			if( this==null ) {
+				return -1;
+			}
 			int size; this.GetValue("__ConfigMap::size__", size);
 			return size;
 		}
@@ -196,6 +199,9 @@ methodmap ConfigMap < StringMap {
 	}
 	property int Len {
 		public get() {
+			if( this==null ) {
+				return -1;
+			}
 			int len; this.GetValue("__ConfigMap::len__", len);
 			return len;
 		}
@@ -203,6 +209,18 @@ methodmap ConfigMap < StringMap {
 			this.SetValue("__ConfigMap::len__", len + 1);
 		}
 	}
+	/*
+	property ConfigMap Parent {
+		public get() {
+			if( this==null ) {
+				return null;
+			}
+			ConfigMap parent; this.GetValue("__ConfigMap::parent__", parent);
+			return parent;
+		}
+	}
+	*/
+	
 	public bool SetStr(const char[] str, int len=0) {
 		this.KVType = KeyValType_Value;
 		this.Len = len==0? strlen(str) : len;
@@ -225,18 +243,19 @@ methodmap ConfigMap < StringMap {
 	}
 	public bool SetKey(int index, const char[] str, int len=0) {
 		char final_key[30]; Format(final_key, sizeof(final_key), "__ConfigMap::key%i__", index);
-		int num_dots = CountChars(str, '.');
-		int new_len = (len==0? strlen(str) : len) + (num_dots * 2) + 1;
-		char[] escaped_str = new char[new_len + 1];
-		strcopy(escaped_str, new_len, str);
-		//PrintToServer("CfgMap::SetKey - Before str : '%s'", escaped_str);
-		ReplaceString(escaped_str, new_len, ".", "\\.");
-		//PrintToServer("CfgMap::SetKey - After str : '%s'", escaped_str);
+		//int new_len = (len==0? strlen(str) : len) + (num_dots * 2) + 1;
+		//char[] escaped_str = new char[new_len + 1];
+		//strcopy(escaped_str, new_len, str);
+		//LogMessage("CfgMap::SetKey - Before str : '%s'", escaped_str);
+		//ReplaceString(escaped_str, new_len, ".", "\\.");
+		//LogMessage("CfgMap::SetKey - After str : '%s'", escaped_str);
 		
-		bool insert_res = this.SetString(final_key, escaped_str);
-		//int key_len = len==0? strlen(str) : len;
+		bool insert_res = this.SetString(final_key, str);
+		int key_len = len==0? strlen(str) : len;
 		Format(final_key, sizeof(final_key), "__ConfigMap::key%i_len__", index);
-		return this.SetValue(final_key, new_len + 1) && insert_res;
+		//int num_dots = CountChars(str, '.');
+		//Format(final_key, sizeof(final_key), "__ConfigMap::key%i_dots__", num_dots);
+		return this.SetValue(final_key, key_len + 1) && insert_res;
 	}
 	
 	public bool CfgFileChanged() {
@@ -249,7 +268,7 @@ methodmap ConfigMap < StringMap {
 		return saved_file_time != GetFileTime(filepath, FileTime_LastChange);
 	}
 	
-	public ConfigMap GetValDirect(const char[] key) {
+	public ConfigMap GetValSimple(const char[] key) {
 		ConfigMap val;
 		if( this.GetValue(key, val) && val.KVType != KeyValType_Null ) {
 			return val;
@@ -257,20 +276,10 @@ methodmap ConfigMap < StringMap {
 		return null;
 	}
 	
-	public ConfigMap GetValSimple(const char[] key) {
-		/// first check if we're getting a singular value OR we iterate through a sectional path.
-		int dot = FindCharInString(key, '.');
-		/// Patch: dot and escaped dot glitching out the hashmap hashing...
-		if( dot == -1 || (dot > 0 && key[dot-1]=='\\') ) {
-			ConfigMap val;
-			if( this.GetValue(key, val) && val.KVType != KeyValType_Null ) {
-				return val;
-			}
-		}
-		return null;
-	}
-	
 	public ConfigMap GetValComplex(const char[] key) {
+		if( key[0]==0 ) {
+			return null;
+		}
 		/// not a singular value, iterate to the
 		/// specific section then parse the target key first.
 		int i; /// used for `key`.
@@ -305,6 +314,7 @@ methodmap ConfigMap < StringMap {
 				itermap = val.Section;
 			}
 		}
+		return null;
 	}
 	
 	public ConfigMap GetVal(const char[] key) {
@@ -316,7 +326,7 @@ methodmap ConfigMap < StringMap {
 	}
 	
 	public bool SetVal(const char[] key, const char[] val_str="", int val_size=0) {
-		if( this==null ) {
+		if( this==null || key[0]==0 ) {
 			return false;
 		}
 		
@@ -328,19 +338,21 @@ methodmap ConfigMap < StringMap {
 		if( dot == -1 || (dot > 0 && key[dot-1]=='\\') ) {
 			ConfigMap val;
 			bool result = this.GetValue(key, val);
-			KeyValType tag = val.KVType;
-			if( result && tag != KeyValType_Null ) {
-				if( do_erase ) {
-					if( tag==KeyValType_Section ) {
-						ConfigMap cfg = val.Section;
-						DeleteCfg(cfg);
+			if( result && val != null ) {
+				KeyValType tag = val.KVType;
+				if( tag != KeyValType_Null ) {
+					if( do_erase ) {
+						if( tag==KeyValType_Section ) {
+							ConfigMap cfg = val.Section;
+							DeleteCfg(cfg);
+						}
+						delete val;
+						this.Remove(key);
+					} else if( tag==KeyValType_Value ) {
+						val.SetStr(val_str, val_size);
 					}
-					delete val;
-					this.Remove(key);
-				} else if( tag==KeyValType_Value ) {
-					val.SetStr(val_str, val_size);
+					return true;
 				}
-				return true;
 			}
 			return false;
 		}
@@ -811,6 +823,12 @@ methodmap ConfigMap < StringMap {
 		return default_val;
 	}
 	
+	/// this is used with .Size property.
+	/**
+	 * int size = cfg.Size;
+	 * ConfigMap[] sects = new ConfigMap[size];
+	 * int num_sections = cfg.GetSections(sects, filter);
+	 */
 	public int GetSections(ConfigMap[] buffer, ConfigMapSectionFilter fn_filter=INVALID_FUNCTION) {
 		if( this==null ) {
 			return 0;
@@ -899,7 +917,31 @@ methodmap ConfigMap < StringMap {
 		}
 		return f;
 	}
+	
+	public int GetSectionNameSize(const char[] key_path) {
+		int size;
+		if( key_path[0]==0 ) {
+			this.GetValue("__ConfigMap::sect_name_len__", size);
+			return size;
+		}
+		
+		ConfigMap val = this.GetVal(key_path);
+		if( val != null ) {
+			val.GetValue("__ConfigMap::sect_name_len__", size);
+		}
+		return size;
+	}
+	
+	public bool GetSectionName(const char[] key_path, char[] buffer, int len) {
+		if( key_path[0]==0 ) {
+			return this.GetString("__ConfigMap::sect_name__", buffer, len);
+		}
+		
+		ConfigMap val = this.GetVal(key_path);
+		return( val != null )? val.GetString("__ConfigMap::sect_name__", buffer, len) : false;
+	}
 };
+
 
 public SMCResult ConfigMap_OnNewSection(SMCParser smc, const char[] name, bool opt_quotes) {
 	/// if we hit a new (sub)section,
@@ -913,7 +955,7 @@ public SMCResult ConfigMap_OnNewSection(SMCParser smc, const char[] name, bool o
 	
 	g_kvstate.top = new StringMap();
 	if( g_kvstate.debug_mode ) {
-		PrintToServer("ConfigMap Debug :: Allocated Map for Section '%s'", name);
+		LogMessage("ConfigMap Debug :: Allocated Map for Section '%s'", name);
 	}
 	strcopy(g_kvstate.curr_section, sizeof(g_kvstate.curr_section), name);
 	g_kvstate.enum_stack.Push(g_kvstate.enum_local);
@@ -950,12 +992,12 @@ static stock void CfgCheckMathExprs(char[] new_value, int val_size) {
 		int expression_idx = math_op + strlen("<math");
 		int expression_len = GetSubStringLen(new_value[expression_idx], '>');
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("CfgMath:: expression_len = %i | new_value: '%s'", expression_len, new_value);
+			LogMessage("CfgMath:: expression_len = %i | new_value: '%s'", expression_len, new_value);
 		}
 		char[] expression = new char[expression_len];
 		ParseSubString(new_value[expression_idx], expression, '>');
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("CfgMath:: Expr: '%s'", expression);
+			LogMessage("CfgMath:: Expr: '%s'", expression);
 		}
 		float result = ParseExpr(expression, g_kvstate.math_func, g_kvstate.data);
 		char result_str[40]; Format(result_str, sizeof(result_str), "%f", result);
@@ -965,7 +1007,7 @@ static stock void CfgCheckMathExprs(char[] new_value, int val_size) {
 		Format(full_expr, full_expr_len, "<math%s>", expression);
 		ReplaceString(new_value, val_size, full_expr, result_str);
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("CfgMath:: Expr: '%s' :: Result = %f | new_value :: '%s'", expression, result, new_value);
+			LogMessage("CfgMath:: Expr: '%s' :: Result = %f | new_value :: '%s'", expression, result, new_value);
 		}
 	}
 }
@@ -1003,7 +1045,7 @@ public SMCResult ConfigMap_OnKeyValue(SMCParser smc, const char[] key, const cha
 		ConfigMap val = ConfigMap.Make();
 		val.Section = outter_file;
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("ConfigMap Debug :: Allocated ConfigMap for key: '%s' | Handle: '%i'", key, val);
+			LogMessage("ConfigMap Debug :: Allocated ConfigMap for key: '%s' | Handle: '%i'", key, val);
 		}
 		g_kvstate.top.SetValue(value, val);
 		view_as< ConfigMap >(g_kvstate.top).SetKey(g_kvstate.key_num, value);
@@ -1014,7 +1056,7 @@ public SMCResult ConfigMap_OnKeyValue(SMCParser smc, const char[] key, const cha
 	
 	ConfigMap val = ConfigMap.Make();
 	if( g_kvstate.debug_mode ) {
-		PrintToServer("ConfigMap Debug :: Allocated ConfigMap for key: '%s' of value: '%s' | Handle: '%i'", key, value, val);
+		LogMessage("ConfigMap Debug :: Allocated ConfigMap for key: '%s' of value: '%s' | Handle: '%i'", key, value, val);
 	}
 	
 	if( StrEqual(value, "<FILE>", false) ) {
@@ -1057,8 +1099,8 @@ public SMCResult ConfigMap_OnKeyValue(SMCParser smc, const char[] key, const cha
 }
 
 public SMCResult ConfigMap_OnEndSection(SMCParser smc) {
-	g_kvstate.key_num      = g_kvstate.enum_stack.Pop();
-	g_kvstate.iota_local   = g_kvstate.enum_stack.Pop();
+	g_kvstate.key_num    = g_kvstate.enum_stack.Pop();
+	g_kvstate.iota_local = g_kvstate.enum_stack.Pop();
 	g_kvstate.enum_local = g_kvstate.enum_stack.Pop();
 	
 	/// if our stack isn't empty, pop back our older top
@@ -1068,7 +1110,7 @@ public SMCResult ConfigMap_OnEndSection(SMCParser smc) {
 		ConfigMap val = ConfigMap.Make();
 		val.Section = view_as< ConfigMap >(g_kvstate.top);
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("ConfigMap Debug :: Allocated ConfigMap to store Section: '%s' | Handle: '%i'", g_kvstate.curr_section, val);
+			LogMessage("ConfigMap Debug :: Allocated ConfigMap to store Section: '%s' | Handle: '%i'", g_kvstate.curr_section, val);
 		}
 		
 		if( StrContains(g_kvstate.curr_section, "<ENUM>") != -1 ) {
@@ -1081,6 +1123,8 @@ public SMCResult ConfigMap_OnEndSection(SMCParser smc) {
 			ReplaceString(g_kvstate.curr_section, sizeof(g_kvstate.curr_section), "<enum>", enum_val_str);
 		}
 		CfgCheckMathExprs(g_kvstate.curr_section, sizeof(g_kvstate.curr_section));
+		val.SetString("__ConfigMap::sect_name__", g_kvstate.curr_section);
+		val.SetValue("__ConfigMap::sect_name_len__", strlen(g_kvstate.curr_section) + 1);
 		higher.SetValue(g_kvstate.curr_section, val);
 		view_as< ConfigMap >(higher).SetKey(g_kvstate.key_num, g_kvstate.curr_section);
 		view_as< ConfigMap >(higher).Size++;
@@ -1098,12 +1142,12 @@ public SMCResult ConfigMap_OnCurrentLine(SMCParser smc, const char[] line, int l
 }
 
 /// ported from my C library: Harbol Config Parser.
-stock bool ParseTargetPath(const char[] key, char[] buffer, int buffer_len) {
+stock bool ParseTargetPath(const char[] key, char[] buffer, int buffer_len, int sep='.') {
 	/// parse something like: "root.section1.section2.section3.\\..dotsection"
 	int i = strlen(key) - 1;
 	while( i > 0 ) {
-		/// Allow escaping dots so we can use them in key-path iteration.
-		if( key[i]=='.' ) {
+		/// Allow escaping separators so we can use them in key-path iteration.
+		if( key[i]==sep ) {
 			if( key[i-1]=='\\' ) {
 				i--;
 			} else {
@@ -1117,14 +1161,13 @@ stock bool ParseTargetPath(const char[] key, char[] buffer, int buffer_len) {
 	
 	/// now we save the target section and then use the resulting string.
 	int n;
-	while( key[i] != 0 && n < buffer_len ) {
+	while( i > 0 && key[i] != 0 && n < buffer_len ) {
 		if( key[i]=='\\' ) {
 			i++;
 			continue;
 		}
 		buffer[n] = key[i];
-		n++;
-		i++;
+		n++; i++;
 	}
 	return n > 0;
 }
@@ -1157,7 +1200,7 @@ stock void DeleteCfg(ConfigMap& cfg, bool clear_only=false, bool debug_mode=fals
 			case KeyValType_Value: {
 				delete val;
 				if( debug_mode ) {
-					PrintToServer("DeleteCfg :: Deleted Value '%s'", key_buffer);
+					LogMessage("DeleteCfg :: Deleted Value '%s'", key_buffer);
 				}
 			}
 			case KeyValType_Section: {
@@ -1165,7 +1208,7 @@ stock void DeleteCfg(ConfigMap& cfg, bool clear_only=false, bool debug_mode=fals
 				DeleteCfg(section, false, debug_mode);
 				delete val;
 				if( debug_mode ) {
-					PrintToServer("DeleteCfg :: Deleted Section '%s'", key_buffer);
+					LogMessage("DeleteCfg :: Deleted Section '%s'", key_buffer);
 				}
 			}
 		}
@@ -1226,7 +1269,7 @@ stock void PrintCfg(ConfigMap cfg, int tabs=0) {
 	delete snap;
 }
 
-stock bool ReloadCfg(ConfigMap& cfg) {
+stock bool ReloadCfg(ConfigMap &cfg) {
 	char filename[PLATFORM_MAX_PATH];
 	cfg.GetString("__ConfigMap::filename__", filename, sizeof(filename));
 	DeleteCfg(cfg);
@@ -1300,7 +1343,7 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 	if( g_kvstate.debug_mode ) {
 		char filename[PLATFORM_MAX_PATH];
 		root.GetString("__ConfigMap::filename__", filename, sizeof(filename));
-		PrintToServer("CfgInterpStrings :: name of root :: '%s'", filename);
+		LogMessage("CfgInterpStrings :: name of root :: '%s'", filename);
 	}
 	
 	int len = curr_cfg.Size;
@@ -1308,14 +1351,14 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 		return;
 	}
 	if( g_kvstate.debug_mode ) {
-		PrintToServer("CfgInterpStrings :: number of items in current sect:: '%i'", len);
+		LogMessage("CfgInterpStrings :: number of items in current sect:: '%i'", len);
 	}
 	for( int i; i < len; ) {
 		int key_len = curr_cfg.GetKeySize(i);
 		char[] key = new char[key_len + 1];
 		curr_cfg.GetKey(i, key, key_len);
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("CfgInterpStrings :: key '%s' | key_len '%i' @ index: %i", key, key_len, i);
+			LogMessage("CfgInterpStrings :: key '%s' | key_len '%i' @ index: %i", key, key_len, i);
 		}
 		ConfigMap cfg_of_key = curr_cfg.GetVal(key);
 		if( cfg_of_key==null ) {
@@ -1325,7 +1368,7 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 		}
 		KeyValType kvt = cfg_of_key.KVType;
 		if( g_kvstate.debug_mode ) {
-			PrintToServer("CfgInterpStrings :: kvt '%i'", kvt);
+			LogMessage("CfgInterpStrings :: kvt '%i'", kvt);
 		}
 		{
 			int interp_idx = StrContains(key, "{");
@@ -1352,7 +1395,7 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 				Format(new_key, new_key_len, "%s", key);
 				ReplaceString(new_key, new_key_len, replace, value);
 				if( g_kvstate.debug_mode ) {
-					PrintToServer("CfgInterpStrings :: old key:: '%s' | new key:: '%s'", key, new_key);
+					LogMessage("CfgInterpStrings :: old key:: '%s' | new key:: '%s'", key, new_key);
 				}
 				curr_cfg.Remove(key);
 				curr_cfg.SetValue(new_key, cfg_of_key);
@@ -1371,7 +1414,7 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 				cfg_of_key.GetStr(curr_value, curr_value_len);
 				int interp_idx = StrContains(curr_value, "{");
 				if( g_kvstate.debug_mode ) {
-					PrintToServer("CfgInterpStrings :: value '%s' -> interp_idx:: '%i'", curr_value, interp_idx);
+					LogMessage("CfgInterpStrings :: value '%s' -> interp_idx:: '%i'", curr_value, interp_idx);
 				}
 				if( interp_idx >= 0 && StrContains(curr_value, "}") != -1 ) {
 					/// "{keks} hi"
@@ -1396,7 +1439,7 @@ static stock void CfgInterpStrings(ConfigMap root, ConfigMap curr_cfg) {
 					Format(new_value, new_value_len, "%s", curr_value);
 					ReplaceString(new_value, new_value_len, replace, value);
 					if( g_kvstate.debug_mode ) {
-						PrintToServer("CfgInterpStrings :: old value:: '%s' | new value:: '%s'", curr_value, new_value);
+						LogMessage("CfgInterpStrings :: old value:: '%s' | new value:: '%s'", curr_value, new_value);
 					}
 					curr_cfg.SetVal(key, new_value, new_value_len);
 					continue;
@@ -1417,7 +1460,7 @@ enum {
 	TokenArcSin, TokenArcCos, TokenArcTan,
 	TokenLog,
 	TokenFloor, TokenRound, TokenCeil, TokenFraction,
-	TokenToRad, TokenToDegree, TokenRandom,
+	TokenToRad, TokenToDegree, TokenRandom, TokenRandomI,
 	
 	/// builtin constants.
 	TokenE, TokenPi, TokenURand,
@@ -1602,6 +1645,11 @@ static stock float ParseFnExpr(LexState ls, const char[] expression, ConfigMapMa
 			GetToken(ls, expression);
 			float val = (ls.tok.tag==TokenLParen || ls.tok.tag==TokenLBrack)? ParseFnExpr(ls, expression, fn_math, data) : ParsePowExpr(ls, expression, fn_math, data);
 			return GetRandomFloat(0.0, val);
+		}
+		case TokenRandomI: {
+			GetToken(ls, expression);
+			float val = (ls.tok.tag==TokenLParen || ls.tok.tag==TokenLBrack)? ParseFnExpr(ls, expression, fn_math, data) : ParsePowExpr(ls, expression, fn_math, data);
+			return float( GetRandomInt(0, RoundFloat(val)) );
 		}
 	}
 	return ParsePrefixExpr(ls, expression, fn_math, data);
@@ -1867,7 +1915,7 @@ static stock void GetToken(LexState ls, const char[] expression, bool &res=true)
 					"sin", "cos", "tan",
 					"arcsin", "arccos", "arctan",
 					"log", "floor", "round", "ceil", "fraction",
-					"radians", "degress", "random",
+					"radians", "degress", "random", "irandom",
 					
 					/// variables
 					"e", "pi", "urand"
@@ -1894,7 +1942,7 @@ static stock void GetToken(LexState ls, const char[] expression, bool &res=true)
 	}
 }
 
-stock int RemoveString(char[] str, const char[] src) {
+static stock int RemoveString(char[] str, const char[] src) {
 	int j;
 	int src_len = strlen(src);
 	if( src_len <= 0 ) {
@@ -1912,7 +1960,7 @@ stock int RemoveString(char[] str, const char[] src) {
 	return j;
 }
 
-stock int TrimChars(char[] str, const char[] chrs) {
+static stock int TrimChars(char[] str, const char[] chrs) {
 	int j;
 	for( int i; str[i] != 0; i++ ) {
 		if( FindCharInString(chrs, str[i]) == -1 ) {
@@ -1924,7 +1972,7 @@ stock int TrimChars(char[] str, const char[] chrs) {
 	return j;
 }
 
-stock int RemoveAllWhiteSpace(char[] str) {
+static stock int RemoveAllWhiteSpace(char[] str) {
 	int j;
 	for( int i; str[i] != 0; i++ ) {
 		if( !IsCharSpace(str[i]) ) {
@@ -1936,7 +1984,7 @@ stock int RemoveAllWhiteSpace(char[] str) {
 	return j;
 }
 
-stock int CountChars(const char[] str, int c) {
+static stock int CountChars(const char[] str, int c) {
 	int k;
 	for( int i; str[i] != 0; i++ ) {
 		k += view_as< int >(str[i]==c);

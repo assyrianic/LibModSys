@@ -809,9 +809,9 @@ enum struct PrivateFwdsManager {
 				continue;
 			}
 			
-			int name_len = priv_fwd.GetSize("name");
+			int name_len = priv_fwd.GetSize("name\\.of");
 			char[] fwd_name = new char[name_len + 1];
-			priv_fwd.Get("name", fwd_name, name_len);
+			priv_fwd.Get("name\\.of", fwd_name, name_len);
 			if( this.private_fwds.ContainsKey(fwd_name) ) {
 				LogError("PrivateFwdsManager :: Error: **** duplicate private forward name '%s'! skipping... ****", fwd_name);
 				continue;
@@ -1108,6 +1108,7 @@ stock bool CheckDownload(const char[] file) {
 		AddFileToDownloadsTable(file);
 		return true;
 	}
+	LogError("CheckDownload :: File not found: '%s'", file);
 	return false;
 }
 
@@ -1316,11 +1317,36 @@ stock bool IsValidPlugin(Handle plugin) {
 	PluginIterator iter = new PluginIterator();
 	bool res = false;
 	while( iter.Next() && !res ) {
-		res = iter.Plugin == plugin;
+		res = iter.Plugin==plugin;
 	}
 	delete iter;
 	return res;
 }
+
+stock bool UpdatePluginHandle(Handle &plugin, const char[] name) {
+	PluginIterator iter = new PluginIterator();
+	bool res = false;
+	while( iter.Next() && !res ) {
+		Handle pl = iter.Plugin;
+		if( plugin==pl ) {
+			/// plugin is valid, no need to update.
+			res = true;
+			break;
+		}
+		
+		char pl_name[PLATFORM_MAX_PATH];
+		GetPluginFilename(pl, pl_name, sizeof(pl_name));
+		if( !StrEqual(name, pl_name) ) {
+			/// not the same.
+			continue;
+		}
+		plugin = pl;
+		res = true;
+	}
+	delete iter;
+	return res;
+}
+
 
 stock int int_hash(int i, int seed) {
 	int h = seed;

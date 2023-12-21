@@ -73,7 +73,7 @@ stock int LibModSys_GlobalFwdFuncCount(const char[] fwd_name) {
     LibModSys_GetPrivateFwd(boss_manager, "OnSomethingDoCall", pf);
     
     /// Hooking example.
-    pf.Hook(plugin, OnBossSomethingDoCall);
+    pf.Hook(plugin, OnDoCall);
  * ```
  */
 native ManagerID LibModSys_MakePrivateFwdsManager(const char[] cfgfile);
