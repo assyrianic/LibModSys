@@ -809,9 +809,9 @@ enum struct PrivateFwdsManager {
 				continue;
 			}
 			
-			int name_len = priv_fwd.GetSize("name\\.of");
+			int name_len = priv_fwd.GetSize("name");
 			char[] fwd_name = new char[name_len + 1];
-			priv_fwd.Get("name\\.of", fwd_name, name_len);
+			priv_fwd.Get("name", fwd_name, name_len);
 			if( this.private_fwds.ContainsKey(fwd_name) ) {
 				LogError("PrivateFwdsManager :: Error: **** duplicate private forward name '%s'! skipping... ****", fwd_name);
 				continue;
