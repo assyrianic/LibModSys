@@ -3,7 +3,7 @@ A runtime/plugin-based, inter-plugin communication library for SourceMod.
 
 
 ## Version
-vers 1.4.0b
+1.4.0b
 
 
 ## Purpose
@@ -12,10 +12,10 @@ To reduce the boilerplate needed to setup and create forwards and to simplify in
 
 ## Features
 * Global Forwards Manager - controlled and managed via Config file.
--- Let's you rapidly create and execute Global Forwards without needing to recompile plugins.
+  - Let's you rapidly create and execute Global Forwards without needing to recompile plugins.
 
 * Private Forward Managers - Any plugin using libmodsys can request one or more private forward managers, each individually controlled by a config file.
--- Let's you rapidly create and execute Private Forwards without needing to recompile plugins.
+  - Let's you rapidly create and execute Private Forwards without needing to recompile plugins.
 
 * Module/Plugin Managers - Any plugin using libmodsys, just like the Private Forward Managers, can request one or more Plugin Managers.
 
@@ -23,12 +23,12 @@ Each type of manager has different strengths to them.
 
 
 * `SharedMap` - `StringMap` that has extra features to allow for very simple data sharing and data control between plugins.
--- Works on a system of properties.
--- Plugins that make properties, own those properties.
--- Plugins can optionally **[Un]Lock** (prevents other plugin's except `SharedMap` creator/owner plugin from deleting the property) and/or **[Un]Freeze** (prevents other plugin's except `SharedMap` creator/owner plugin from changing the property data).
--- `SharedMap`s are more type safe than normal `StringMap`s and allow you to get the length of an array or string of a property!
--- `SharedMap`s are safe to share and impossible to destroy/clear from other plugins that didn't initialize the `SharedMap`!
--- `SharedMap`s can cache functions and can be invoked via prop of the function and uses an argument parsing string.
+  - Works on a system of properties.
+  - Plugins that make properties, own those properties.
+  - Plugins can optionally **[Un]Lock** (prevents other plugin's except `SharedMap` creator/owner plugin from deleting the property) and/or **[Un]Freeze** (prevents other plugin's except `SharedMap` creator/owner plugin from changing the property data).
+  - `SharedMap`s are more type safe than normal `StringMap`s and allow you to get the length of an array or string of a property!
+  - `SharedMap`s are safe to share and impossible to destroy/clear from other plugins that didn't initialize the `SharedMap`!
+  - `SharedMap`s can cache functions and can be invoked via prop of the function and uses an argument parsing string.
 
 ## How To Use
 
